@@ -270,18 +270,31 @@ def longest_token(vocab: Dict[int, bytes]) -> bytes:
 def main() -> None:
     p = argparse.ArgumentParser(description="Train byte-level BPE tokenizer (with optional parallel pretokenization).")
     p.add_argument("--config", type=str, default="configs/training_config.yaml")
-    p.add_argument("--dataset", type=str, required=True, choices=["tinystories", "owt"])
+    p.add_argument("--dataset", type=str, choices=["tinystories", "owt"])
+    p.add_argument("--input-file", type=str, default=None,
+                   help="Optional: train directly on this file path (overrides --dataset/config resolution).")
     p.add_argument("--vocab-size", type=int, default=10_000)
     p.add_argument("--special-token", action="append", default=["<|endoftext|>"])
     p.add_argument("--out-dir", type=str, default="artifacts/bpe")
-    p.add_argument("--num-proc", type=int, default=1, help="Parallel processes for pre-tokenization (sets BPE_NUM_PROCESSES).")
+    p.add_argument("--out-prefix", type=str, default=None,
+                   help="Optional: override output filename prefix (default uses dataset_v{vocab}).")
+    p.add_argument("--num-proc", type=int, default=1,
+                   help="Parallel processes for pre-tokenization (sets BPE_NUM_PROCESSES).")
     args = p.parse_args()
 
-    # Control parallelism without changing train_bpe() signature (keeps tests happy)
     os.environ["BPE_NUM_PROCESSES"] = str(max(1, args.num_proc))
 
-    settings = load_settings(args.config)
-    train_path, valid_path = resolve_dataset_files(settings, args.dataset)
+    # 1) Decide which file to train on
+    if args.input_file is not None:
+        train_path = Path(args.input_file)
+        valid_path = None
+        dataset_name = "custom"
+    else:
+        if args.dataset is None:
+            raise SystemExit("Either --input-file or --dataset must be provided.")
+        settings = load_settings(args.config)
+        train_path, valid_path = resolve_dataset_files(settings, args.dataset)
+        dataset_name = args.dataset
 
     if not train_path.exists():
         raise FileNotFoundError(f"Train file not found: {train_path}")
@@ -295,12 +308,12 @@ def main() -> None:
     dt = time.time() - t0
 
     out_dir = Path(args.out_dir)
-    prefix = f"{args.dataset}_v{args.vocab_size}"
+    prefix = args.out_prefix or f"{dataset_name}_v{args.vocab_size}"
     vocab_path, merges_path = save_vocab_and_merges(vocab, merges, out_dir, prefix)
 
     lt = longest_token(vocab)
 
-    print(f"[ok] dataset={args.dataset}")
+    print(f"[ok] dataset={dataset_name}")
     print(f"[ok] train_path={train_path}")
     print(f"[ok] valid_path={valid_path}")
     print(f"[ok] vocab_size(final)={len(vocab)} merges={len(merges)}")
@@ -309,6 +322,7 @@ def main() -> None:
     print(f"[ok] saved_vocab={vocab_path}")
     print(f"[ok] saved_merges={merges_path}")
     print(f"[ok] longest_token_len={len(lt)} longest_token_latin1={lt.decode('latin-1', errors='replace')!r}")
+
 
 
 if __name__ == "__main__":
