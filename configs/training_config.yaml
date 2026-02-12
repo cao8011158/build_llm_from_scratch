@@ -1,0 +1,53 @@
+# =========================
+# Data
+# =========================
+data:
+  root: /content/drive/MyDrive/build_llm_from_scratch/data
+
+  datasets:
+    tinystories:
+      train_file: TinyStoriesV2-GPT4-train.txt
+      valid_file: TinyStoriesV2-GPT4-valid.txt
+
+    owt:
+      train_file: owt_train.txt
+      valid_file: owt_valid.txt
+# =========================
+# Tokenizer
+# =========================
+tokenizer:
+  vocab_size: 32000
+  model_type: bpe
+  lowercase: false
+
+  # 保存路径
+  save_dir: /content/drive/MyDrive/build_llm_from_scratch/tokenizer
+
+# =========================
+# Model
+# =========================
+model:
+  d_model: 512
+  n_heads: 8
+  n_layers: 6
+  seq_len: 256
+  dropout: 0.1
+
+# =========================
+# Training
+# =========================
+training:
+  batch_size: 16
+  lr: 3e-4
+  max_steps: 20000
+  eval_interval: 500
+  save_interval: 1000
+
+  # checkpoints
+  save_dir: /content/drive/MyDrive/build_llm_from_scratch/checkpoints
+
+# =========================
+# Device
+# =========================
+device:
+  type: cuda
