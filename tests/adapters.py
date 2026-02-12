@@ -16,20 +16,19 @@ def run_linear(
     weights: Float[Tensor, " d_out d_in"],
     in_features: Float[Tensor, " ... d_in"],
 ) -> Float[Tensor, " ... d_out"]:
-    """
-    Given the weights of a Linear layer, compute the transformation of a batched input.
+ # 1️⃣ instantiate your module
+    from llm_from_scratch.model.linear import Linear
+    layer = Linear(d_in, d_out)
 
-    Args:
-        in_dim (int): The size of the input dimension
-        out_dim (int): The size of the output dimension
-        weights (Float[Tensor, "d_out d_in"]): The linear weights to use
-        in_features (Float[Tensor, "... d_in"]): The output tensor to apply the function to
+    # 2️⃣ load provided weights
+    layer.load_state_dict({"W": weights})
 
-    Returns:
-        Float[Tensor, "... d_out"]: The transformed output of your linear module.
-    """
+    # 3️⃣ forward pass
+    out = layer(in_features)
 
-    raise NotImplementedError
+    # 4️⃣ return result
+    return out
+
 
 
 def run_embedding(
