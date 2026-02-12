@@ -1,21 +1,22 @@
 [project]
+# ✅ 发行包名（pip install 时看到的名字）可以继续叫 cs336_basics
 name = "cs336_basics"
 version = "1.0.6"
 description = "CS336 Assignment 1"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "einops>=0.8.1", # tensor operations
-    "einx>=0.3.0", # more general tensor operations
-    "jaxtyping>=0.3.0", # type hints for pytorch/jax/numpy
+    "einops>=0.8.1",
+    "einx>=0.3.0",
+    "jaxtyping>=0.3.0",
     "numpy",
     "psutil>=6.1.1",
     "pytest>=8.3.4",
-    "regex>=2024.11.6", # more powerful regex than the builtin `re` module
-    "submitit>=1.5.2", # job submission for SLURM
+    "regex>=2024.11.6",
+    "submitit>=1.5.2",
     "tiktoken>=0.9.0",
     "torch~=2.6.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-    "torch~=2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'", # Intel Macs
+    "torch~=2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "tqdm>=4.67.1",
     "wandb>=0.19.7",
     "ty>=0.0.1a16",
@@ -26,8 +27,10 @@ requires = ["uv_build>=0.8.3,<0.9.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-name = "cs336_basics"
-module-root = ""
+# ✅ 这里必须是“可导入的包目录名”，与你的 src/llm_from_scratch 对齐
+module-name = "llm_from_scratch"
+# ✅ 这里必须指向 src 目录
+module-root = "src"
 
 [tool.uv]
 package = true
@@ -42,11 +45,8 @@ addopts = "-s"
 line-length = 120
 
 [tool.ruff.lint.extend-per-file-ignores]
-# Also ignore `E402` in all `__init__.py` files.
 "__init__.py" = ["E402", "F401", "F403", "E501"]
 
 [tool.ruff.lint]
 extend-select = ["UP"]
-ignore = [
-    "F722"
-]
+ignore = ["F722"]
