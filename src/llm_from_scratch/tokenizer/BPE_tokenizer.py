@@ -60,13 +60,7 @@ class Tokenizer:
             
         # GPT-2 pre-tokenization regex (用于 matches_tiktoken 测试)
         self._pat = re.compile(
-            r"""'s|'t|'re|'ve|'m|'ll|'d
-                | ?\pL+
-                | ?\pN+
-                | ?[^\s\pL\pN]+
-                | \s+(?!\S)
-                | \s+""",
-            re.VERBOSE,
+            r"'s|'t|'re|'ve|'m|'ll|'d| ?\pL+| ?\pN+| ?[^\s\pL\pN]+|\s+(?!\S)|\s+"
         )
 
     @classmethod
