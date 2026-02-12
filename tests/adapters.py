@@ -568,7 +568,9 @@ def run_train_bpe(
     **kwargs,
 ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     # ✅ import your implementation
+    import os
     from pathlib import Path
+    from typing import Dict, List, Tuple
     from llm_from_scratch.tokenizer.train_bpe import train_bpe
 
     # normalize path (tests may pass PathLike)
