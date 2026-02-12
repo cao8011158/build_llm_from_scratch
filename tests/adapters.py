@@ -543,10 +543,12 @@ def get_tokenizer(
     merges: list[tuple[bytes, bytes]],
     special_tokens: list[str] | None = None,
 ) -> Any:
-    from llm_from_scratch.tokkenizer.BPE_tokenizer import Tokenizer 
+    from llm_from_scratch.tokenizer.BPE_tokenizer import Tokenizer 
 
 
     return Tokenizer(vocab=vocab, merges=merges, special_tokens=special_tokens)
+
+
 
 
 
