@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import regex as re
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 
 
@@ -56,6 +57,17 @@ class Tokenizer:
             self._special_sorted = sorted(self.special_tokens, key=len, reverse=True)
         else:
             self._special_sorted = []
+            
+        # GPT-2 pre-tokenization regex (用于 matches_tiktoken 测试)
+        self._pat = re.compile(
+            r"""'s|'t|'re|'ve|'m|'ll|'d
+                | ?\pL+
+                | ?\pN+
+                | ?[^\s\pL\pN]+
+                | \s+(?!\S)
+                | \s+""",
+            re.VERBOSE,
+        )
 
     @classmethod
     def from_files(
@@ -160,22 +172,26 @@ class Tokenizer:
             pos = next_pos + len(next_tok)
 
     def _encode_normal_piece(self, piece: str) -> List[int]:
-        # UTF-8 encode to raw bytes
-        b = piece.encode("utf-8")
+        ids: List[int] = []
 
-        # byte-level pretokenization: each byte -> a token bytes([x])
-        tokens: List[bytes] = [bytes([x]) for x in b]
+        # 1) GPT-2 pre-tokenization: regex split
+        for chunk in self._pat.findall(piece):
+            # 2) chunk -> bytes
+            b = chunk.encode("utf-8")
 
-        # apply BPE merges
-        tokens = self._bpe(tokens)
+            # 3) bytes -> single-byte tokens
+            tokens: List[bytes] = [bytes([x]) for x in b]
 
-        # map bytes tokens to ids
-        try:
-            return [self.token_to_id[t] for t in tokens]
-        except KeyError as e:
-            # If this happens, your vocab is missing some byte tokens or merged tokens.
-            # For standard byte-level BPE, vocab should include all 0..255 single bytes.
-            raise KeyError(f"Token bytes not in vocab: {e.args[0]!r}") from e
+            # 4) BPE merges within this chunk only
+            tokens = self._bpe(tokens)
+
+            # 5) map to ids
+            try:
+                ids.extend(self.token_to_id[t] for t in tokens)
+            except KeyError as e:
+                raise KeyError(f"Token bytes not in vocab: {e.args[0]!r}") from e
+
+        return ids
 
     def _bpe(self, tokens: List[bytes]) -> List[bytes]:
         """
