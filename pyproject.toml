@@ -1,5 +1,4 @@
 [project]
-# ✅ 发行包名（pip install 时看到的名字）可以继续叫 cs336_basics
 name = "cs336_basics"
 version = "1.0.6"
 description = "CS336 Assignment 1"
@@ -27,9 +26,9 @@ requires = ["uv_build>=0.8.3,<0.9.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-# ✅ 这里必须是“可导入的包目录名”，与你的 src/llm_from_scratch 对齐
+
 module-name = "llm_from_scratch"
-# ✅ 这里必须指向 src 目录
+
 module-root = "src"
 
 [tool.uv]
