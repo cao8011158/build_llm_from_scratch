@@ -70,28 +70,24 @@ def run_swiglu(
     w3_weight: Float[Tensor, " d_ff d_model"],
     in_features: Float[Tensor, " ... d_model"],
 ) -> Float[Tensor, " ... d_model"]:
-    """Given the weights of a SwiGLU network, return
-    the output of your implementation with these weights.
+    
+    from llm_from_scratch.model.positionwise_feedforward import PositionWiseFeedForward
 
-    Args:
-        d_model (int): Dimensionality of the feedforward input and output.
-        d_ff (int): Dimensionality of the up-project happening internally to your swiglu.
-        w1_weight (Float[Tensor, "d_ff d_model"]): Stored weights for W1
-        w2_weight (Float[Tensor, "d_model d_ff"]): Stored weights for W2
-        w3_weight (Float[Tensor, "d_ff d_model"]): Stored weights for W3
-        in_features (Float[Tensor, "... d_model"]): Input embeddings to the feed-forward layer.
+    # Build module on the same device/dtype as the provided weights / inputs
+    device = in_features.device
+    dtype = in_features.dtype
 
-    Returns:
-        Float[Tensor, "... d_model"]: Output embeddings of the same shape as the input embeddings.
-    """
-    # Example:
-    # If your state dict keys match, you can use `load_state_dict()`
-    # swiglu.load_state_dict(weights)
-    # You can also manually assign the weights
-    # swiglu.w1.weight.data = w1_weight
-    # swiglu.w2.weight.data = w2_weight
-    # swiglu.w3.weight.data = w3_weight
-    raise NotImplementedError
+    swiglu = PositionWiseFeedForward(d_model=d_model, d_ff=d_ff, device=device, dtype=dtype)
+
+    # Copy provided weights into your module parameters (no bias in this module)
+    swiglu.load_state_dict({
+        "W1": w1_weight,
+        "W2": w2_weight,
+        "W3": w3_weight,
+    })
+    # Forward pass
+    return swiglu(in_features)
+
 
 
 def run_scaled_dot_product_attention(
@@ -376,7 +372,7 @@ def run_rmsnorm(
     from llm_from_scratch.model.RMSNorm import RMSNorm
 
     rmsnorm = RMSNorm(d_model=d_model, eps=eps, device=in_features.device, dtype=weights.dtype)
-    
+
     rmsnorm.load_state_dict({"weight": weights.to(in_features.device)}, strict=True)
 
     return rmsnorm(in_features)
