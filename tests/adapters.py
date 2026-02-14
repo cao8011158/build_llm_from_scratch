@@ -589,7 +589,7 @@ def run_cross_entropy(
     inputs: Float[Tensor, " batch_size vocab_size"], targets: Int[Tensor, " batch_size"]
 ) -> Float[Tensor, ""]:
 
-    from llm_from_scratch.loss.ops.cross_entropy import cross_entropy_loss
+    from llm_from_scratch.loss.cross_entropy import cross_entropy_loss
     return cross_entropy_loss(inputs,targets)
 
 
