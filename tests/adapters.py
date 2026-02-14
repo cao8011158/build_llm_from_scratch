@@ -120,29 +120,50 @@ def run_multihead_self_attention(
     o_proj_weight: Float[Tensor, " d_model d_v"],
     in_features: Float[Tensor, " ... sequence_length d_in"],
 ) -> Float[Tensor, " ... sequence_length d_out"]:
-    """
-    Given the key, query, and value projection weights of a naive unbatched
-    implementation of multi-head attention, return the output of an optimized batched
-    implementation. This implementation should handle the key, query, and value projections
-    for all heads in a single matrix multiply.
-    This function should not use RoPE.
-    See section 3.2.2 of Vaswani et al., 2017.
+    
+    from llm_from_scratch.model.gqa_self_attention import GroupedQuerySelfAttention
+    device = in_features.device
+    dtype = in_features.dtype
 
-    Args:
-        d_model (int): Dimensionality of the feedforward input and output.
-        num_heads (int): Number of heads to use in multi-headed attention.
-        max_seq_len (int): Maximum sequence length to pre-cache if your implementation does that.
-        q_proj_weight (Float[Tensor, "d_k d_in"]): Weights for the Q projection
-        k_proj_weight (Float[Tensor, "d_k d_in"]): Weights for the K projection
-        v_proj_weight (Float[Tensor, "d_k d_in"]): Weights for the V projection
-        o_proj_weight (Float[Tensor, "d_model d_v"]): Weights for the output projection
-        in_features (Float[Tensor, "... sequence_length d_in"]): Tensor to run your implementation on.
+    # ---- sanity checks (helpful when debugging shape mismatches) ----
+    d_in = in_features.shape[-1]
+    if d_in != d_model:
+        raise ValueError(f"Expected in_features last dim d_in == d_model, got d_in={d_in}, d_model={d_model}")
 
-    Returns:
-        Float[Tensor, " ... sequence_length d_out"]: Tensor with the output of running your optimized, batched multi-headed attention
-        implementation with the given QKV projection weights and input features.
-    """
-    raise NotImplementedError
+    # ---- build module (GQA degenerates to MHA when Hkv == Hq) ----
+    attn = GroupedQuerySelfAttention(
+        d_model=d_model,
+        num_q_heads=num_heads,
+        num_kv_heads=num_heads,      # <-- important: make it standard MHA behavior
+        rope_theta=10000.0,
+        max_seq_len=2048,
+        device=device,
+        dtype=dtype,
+    ).eval()
+
+    # ---- copy weights into your custom Linear layers ----
+    # Your Linear uses self.W with shape (out_features, in_features)
+    if attn.WQ.W.shape != q_proj_weight.shape:
+        raise ValueError(f"WQ shape mismatch: module {tuple(attn.WQ.W.shape)} vs given {tuple(q_proj_weight.shape)}")
+    if attn.WK.W.shape != k_proj_weight.shape:
+        raise ValueError(f"WK shape mismatch: module {tuple(attn.WK.W.shape)} vs given {tuple(k_proj_weight.shape)}")
+    if attn.WV.W.shape != v_proj_weight.shape:
+        raise ValueError(f"WV shape mismatch: module {tuple(attn.WV.W.shape)} vs given {tuple(v_proj_weight.shape)}")
+    if attn.WO.W.shape != o_proj_weight.shape:
+        raise ValueError(f"WO shape mismatch: module {tuple(attn.WO.W.shape)} vs given {tuple(o_proj_weight.shape)}")
+
+    attn.WQ.W.copy_(q_proj_weight.to(device=device, dtype=dtype))
+    attn.WK.W.copy_(k_proj_weight.to(device=device, dtype=dtype))
+    attn.WV.W.copy_(v_proj_weight.to(device=device, dtype=dtype))
+    attn.WO.W.copy_(o_proj_weight.to(device=device, dtype=dtype))
+
+    # ---- token positions for RoPE ----
+    T = in_features.shape[-2]
+    token_positions = torch.arange(T, device=device)  # (T,)
+
+    # ---- run forward ----
+    return attn(in_features, token_positions)
+
 
 
 def run_multihead_self_attention_with_rope(
@@ -157,6 +178,49 @@ def run_multihead_self_attention_with_rope(
     in_features: Float[Tensor, " ... sequence_length d_in"],
     token_positions: Int[Tensor, " ... sequence_length"] | None = None,
 ) -> Float[Tensor, " ... sequence_length d_out"]:
+    
+    from llm_from_scratch.model.gqa_self_attention import GroupedQuerySelfAttention
+    device = in_features.device
+    dtype = in_features.dtype
+
+    # ---- sanity checks (helpful when debugging shape mismatches) ----
+    d_in = in_features.shape[-1]
+    if d_in != d_model:
+        raise ValueError(f"Expected in_features last dim d_in == d_model, got d_in={d_in}, d_model={d_model}")
+
+    # ---- build module (GQA degenerates to MHA when Hkv == Hq) ----
+    attn = GroupedQuerySelfAttention(
+        d_model=d_model,
+        num_q_heads=num_heads,
+        num_kv_heads=num_heads,      # <-- important: make it standard MHA behavior
+        rope_theta=theta,
+        max_seq_len=max_seq_len,
+        device=device,
+        dtype=dtype,
+    ).eval()
+
+    # ---- copy weights into your custom Linear layers ----
+    # Your Linear uses self.W with shape (out_features, in_features)
+    if attn.WQ.W.shape != q_proj_weight.shape:
+        raise ValueError(f"WQ shape mismatch: module {tuple(attn.WQ.W.shape)} vs given {tuple(q_proj_weight.shape)}")
+    if attn.WK.W.shape != k_proj_weight.shape:
+        raise ValueError(f"WK shape mismatch: module {tuple(attn.WK.W.shape)} vs given {tuple(k_proj_weight.shape)}")
+    if attn.WV.W.shape != v_proj_weight.shape:
+        raise ValueError(f"WV shape mismatch: module {tuple(attn.WV.W.shape)} vs given {tuple(v_proj_weight.shape)}")
+    if attn.WO.W.shape != o_proj_weight.shape:
+        raise ValueError(f"WO shape mismatch: module {tuple(attn.WO.W.shape)} vs given {tuple(o_proj_weight.shape)}")
+
+    attn.WQ.W.copy_(q_proj_weight.to(device=device, dtype=dtype))
+    attn.WK.W.copy_(k_proj_weight.to(device=device, dtype=dtype))
+    attn.WV.W.copy_(v_proj_weight.to(device=device, dtype=dtype))
+    attn.WO.W.copy_(o_proj_weight.to(device=device, dtype=dtype))
+
+    # ---- token positions for RoPE ----
+    T = in_features.shape[-2]
+    token_positions = torch.arange(T, device=device)  # (T,)
+
+    # ---- run forward ----
+    return attn(in_features, token_positions)
     """
     Given the key, query, and value projection weights of a naive unbatched
     implementation of multi-head attention, return the output of an optimized batched

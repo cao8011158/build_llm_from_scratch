@@ -5,9 +5,9 @@ import torch.nn as nn
 from torch import Tensor
 import einx
 
-from llm_from_scratch.model.ops.scaled_dot_product_attention import scaled_dot_product_attention
+from llm_from_scratch.model.ops.blockwise_online_attention import blockwise_online_attention
 from llm_from_scratch.model.ops.RoPE import RotaryPositionalEmbedding
-from llm_from_scratch.model.linear import Linear   
+from llm_from_scratch.model.linear import Linear
 
 
 class GroupedQuerySelfAttention(nn.Module):
@@ -81,7 +81,6 @@ class GroupedQuerySelfAttention(nn.Module):
         # K/V use Hkv heads
         # ---------------------------------------------------------
 
-
         self.WQ = Linear(
             self.d_model,
             self.num_q_heads * self.head_dim,
@@ -129,7 +128,6 @@ class GroupedQuerySelfAttention(nn.Module):
     # causal mask
     # =============================================================
 
-
     @staticmethod
     def _make_causal_mask(T: int, device: torch.device) -> Tensor:
         """
@@ -163,11 +161,10 @@ class GroupedQuerySelfAttention(nn.Module):
         # =========================================================
         # 1️⃣ Linear projections
         # =========================================================
-   
+
         Q = self.WQ(x)                # Q: (B,T,Hq*D)
         K = self.WK(x)                # K: (B,T,Hkv*D)
         V = self.WV(x)                # V: (B,T,Hkv*D)
-
 
         # =========================================================
         # 2️⃣ Split heads
@@ -183,19 +180,17 @@ class GroupedQuerySelfAttention(nn.Module):
         # =========================================================
 
         if token_positions.dim() == 1:
-              # (T,) -> (B, T)
+            # (T,) -> (B, T)
             token_positions_bt = token_positions.unsqueeze(0).expand(B, T)
         else:
             token_positions_bt = token_positions
 
         token_positions_bt = token_positions_bt.to(device=device)
 
-
         # =========================================================
         # 4️⃣ Apply RoPE
         # =========================================================
         # treat head as batch
-
 
         # ---- Q ----
         Q_bh = einx.rearrange("b t h d -> (b h) t d", Q)        # (B*Hq, T, D)
@@ -204,19 +199,16 @@ class GroupedQuerySelfAttention(nn.Module):
         Q_bh = self.rope(Q_bh, pos_q)
         Q = einx.rearrange("(b h) t d -> b t h d", Q_bh, b=B, h=Hq)
 
-
         # ---- K ----
         K_bh = einx.rearrange("b t h d -> (b h) t d", K)             # (B*Hkv, T, D)
         pos_k = token_positions_bt.unsqueeze(1).expand(B, Hkv, T)           # (B, Hkv, T)
         pos_k = einx.rearrange("b h t -> (b h) t", pos_k)           # (B*Hkv, T)
-        K_bh = self.rope(K_bh, pos_k)   
+        K_bh = self.rope(K_bh, pos_k)
         K = einx.rearrange("(b h) t d -> b t h d", K_bh, b=B, h=Hkv)
 
-
         # =========================================================
-        # 5️⃣ Expand KV → match Q heads 
+        # 5️⃣ Expand KV heads to match number of Q heads (GQA logic)
         # =========================================================
-        # (B,T,Hkv,D) -> (B,T,Hkv,G,D) -> (B,T,Hkv*G,D) = (B,T,Hq,D)
 
         K_exp = K.unsqueeze(3).expand(B, T, Hkv, G, D)
         V_exp = V.unsqueeze(3).expand(B, T, Hkv, G, D)
@@ -224,13 +216,11 @@ class GroupedQuerySelfAttention(nn.Module):
         K_exp = einx.rearrange("b t hk g d -> b t (hk g) d", K_exp)     # (B, T, Hq, D)
         V_exp = einx.rearrange("b t hk g d -> b t (hk g) d", V_exp)     # (B, T, Hq, D)
 
-
         # =========================================================
         # 6️⃣ causal mask
         # =========================================================
 
         causal_mask = self._make_causal_mask(T, device=device)          # (T, T) bool
-
 
         # =========================================================
         # 7️⃣ attention per head
@@ -240,18 +230,22 @@ class GroupedQuerySelfAttention(nn.Module):
         Kh = einx.rearrange("b t h d -> (b h) t d", K_exp)      # (B*Hq, T, D)
         Vh = einx.rearrange("b t h d -> (b h) t d", V_exp)      # (B*Hq, T, D)
 
-        Oh = scaled_dot_product_attention(                  # (B*Hq, T, D)
+        Oh = blockwise_online_attention(                       # (B*Hq, T, D)
             Qh,
             Kh,
             Vh,
+            causal=False,
+            q_block=64,
+            k_block=128,
             mask=causal_mask,
-        )           
+            upcast_accumulators=True,
+        )
 
         # =========================================================
         # 8️⃣ merge heads + output projection
         # =========================================================
-        
-         # (B*Hq, T, D) -> (B, T, Hq*D) -> (B, T, d_model)
+
+        # (B*Hq, T, D) -> (B, T, Hq*D) -> (B, T, d_model)
         O = einx.rearrange("(b h) t d -> b t (h d)", Oh, b=B, h=Hq)
 
         return self.WO(O)
