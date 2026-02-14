@@ -297,13 +297,11 @@ def run_transformer_block(
     
     from llm_from_scratch.model.transformer_block import TransformerBlock
     x = in_features
-    device = x.device
-    dtype = x.dtype
+    device, dtype = x.device, x.dtype
     B, T, D = x.shape
-    assert D == d_model, f"in_features last dim {D} != d_model {d_model}"
+    assert D == d_model
 
-    # 1) build your block (pre-norm) and make it behave like standard MHA:
-    #    set num_q_heads=num_heads, num_kv_heads=num_heads (GQA -> MHA)
+    # build your block (GQA degenerates to MHA when q_heads == kv_heads == num_heads)
     block = TransformerBlock(
         d_model=d_model,
         num_heads=num_heads,
@@ -314,80 +312,41 @@ def run_transformer_block(
         dtype=dtype,
     ).to(device=device, dtype=dtype)
 
-    # ----------------------------
-    # helpers: assign weights safely
-    # ----------------------------
-    def _copy_param_(param: Tensor, src: Tensor, name: str) -> None:
-        """
-        Copy src into param. If shapes mismatch but transpose matches, transpose automatically.
-        """
-        if src.dtype != param.dtype:
-            src = src.to(dtype=param.dtype)
-        if src.device != param.device:
-            src = src.to(device=param.device)
-
+    # helper: copy with optional transpose (handles different weight conventions)
+    def copy_into(param: Tensor, src: Tensor, name: str) -> None:
+        src = src.to(device=param.device, dtype=param.dtype)
         if src.shape == param.shape:
             param.copy_(src)
-            return
-        if src.T.shape == param.shape:
+        elif src.T.shape == param.shape:
             param.copy_(src.T)
-            return
-
-        raise ValueError(
-            f"Shape mismatch for {name}: param {tuple(param.shape)} vs src {tuple(src.shape)} "
-            f"(and src.T {tuple(src.T.shape)})"
-        )
-
-    def _get_linear_weight(mod: torch.nn.Module) -> Tensor:
-        """
-        Your custom Linear stores weight as `W` (out_features, in_features).
-        """
-        if hasattr(mod, "W"):
-            return getattr(mod, "W")
-        if hasattr(mod, "weight"):
-            return getattr(mod, "weight")
-        raise AttributeError(f"Cannot find weight parameter on {mod.__class__.__name__}")
-
-    # 2) load attention weights
-    # Your GQA class likely has: WQ, WK, WV, WO (or out_proj).
-    # We'll try common attribute names robustly.
-    attn = block.attn
-
-    def _get_attr_any(obj, names: list[str]):
-        for n in names:
-            if hasattr(obj, n):
-                return getattr(obj, n)
-        raise AttributeError(f"Missing attributes {names} on {obj.__class__.__name__}")
-
-    q_proj = _get_attr_any(attn, ["WQ", "q_proj", "qproj"])
-    k_proj = _get_attr_any(attn, ["WK", "k_proj", "kproj"])
-    v_proj = _get_attr_any(attn, ["WV", "v_proj", "vproj"])
-    o_proj = _get_attr_any(attn, ["WO", "out_proj", "output_proj", "o_proj", "proj_out"])
+        else:
+            raise ValueError(
+                f"Shape mismatch for {name}: param {tuple(param.shape)} vs src {tuple(src.shape)} "
+                f"(src.T {tuple(src.T.shape)})"
+            )
 
     with torch.no_grad():
-        _copy_param_(_get_linear_weight(q_proj), weights["attn.q_proj.weight"], "attn.q_proj.weight")
-        _copy_param_(_get_linear_weight(k_proj), weights["attn.k_proj.weight"], "attn.k_proj.weight")
-        _copy_param_(_get_linear_weight(v_proj), weights["attn.v_proj.weight"], "attn.v_proj.weight")
-        _copy_param_(_get_linear_weight(o_proj), weights["attn.output_proj.weight"], "attn.output_proj.weight")
+        sd = block.state_dict()
 
-        # 3) load RMSNorm weights
-        # RMSNorm usually has self.weight (d_model,)
-        _copy_param_(block.norm1.weight, weights["ln1.weight"], "ln1.weight")
-        _copy_param_(block.norm2.weight, weights["ln2.weight"], "ln2.weight")
+        # --- RMSNorm weights ---
+        copy_into(sd["norm1.weight"], weights["ln1.weight"], "ln1.weight -> norm1.weight")
+        copy_into(sd["norm2.weight"], weights["ln2.weight"], "ln2.weight -> norm2.weight")
 
-        # 4) load FFN weights
-        # Your PositionWiseFeedForward likely has W1/W2/W3 as custom Linear modules.
-        ffn = block.ffn
-        w1 = _get_attr_any(ffn, ["W1", "w1", "fc1"])
-        w2 = _get_attr_any(ffn, ["W2", "w2", "fc2"])
-        w3 = _get_attr_any(ffn, ["W3", "w3", "fc3"])
+        # --- Attention projections ---
+        copy_into(sd["attn.WQ.W"], weights["attn.q_proj.weight"], "attn.q_proj.weight -> attn.WQ.W")
+        copy_into(sd["attn.WK.W"], weights["attn.k_proj.weight"], "attn.k_proj.weight -> attn.WK.W")
+        copy_into(sd["attn.WV.W"], weights["attn.v_proj.weight"], "attn.v_proj.weight -> attn.WV.W")
+        copy_into(sd["attn.WO.W"], weights["attn.output_proj.weight"], "attn.output_proj.weight -> attn.WO.W")
 
-        _copy_param_(_get_linear_weight(w1), weights["ffn.w1.weight"], "ffn.w1.weight")
-        _copy_param_(_get_linear_weight(w2), weights["ffn.w2.weight"], "ffn.w2.weight")
-        _copy_param_(_get_linear_weight(w3), weights["ffn.w3.weight"], "ffn.w3.weight")
+        # --- FFN (SwiGLU: W1, W3, W2) ---
+        copy_into(sd["ffn.W1"], weights["ffn.w1.weight"], "ffn.w1.weight -> ffn.W1")
+        copy_into(sd["ffn.W3"], weights["ffn.w3.weight"], "ffn.w3.weight -> ffn.W3")
+        copy_into(sd["ffn.W2"], weights["ffn.w2.weight"], "ffn.w2.weight -> ffn.W2")
 
-    # 5) token positions for RoPE
-    # Most implementations accept token_positions of shape (T,) or (B,T)
+        # load the edited state dict back
+        block.load_state_dict(sd, strict=True)
+
+    # token positions for RoPE
     token_positions = torch.arange(T, device=device).unsqueeze(0).expand(B, T)
 
     block.eval()
