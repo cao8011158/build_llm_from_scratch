@@ -97,12 +97,18 @@ def run_scaled_dot_product_attention(
     mask: Bool[Tensor, " ... queries keys"] | None = None,
 ) -> Float[Tensor, " ... queries d_v"]:
     
-    from llm_from_scratch.model.ops.scaled_dot_product_attention import scaled_dot_product_attention
+    from llm_from_scratch.model.ops.blockwise_online_attention import blockwise_online_attention
 
-    if mask is not None and mask.dtype != torch.bool:
-            mask = mask.to(dtype=torch.bool)
-
-    return scaled_dot_product_attention(Q=Q, K=K, V=V, mask=mask)
+    return blockwise_online_attention(
+        Q=Q,
+        K=K,
+        V=V,
+        causal=False,
+        q_block=64,
+        k_block=128,
+        mask=mask,
+        upcast_accumulators=True,
+    )
 
 
 def run_multihead_self_attention(
