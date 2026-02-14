@@ -39,8 +39,9 @@ class GroupedQuerySelfAttention(nn.Module):
         d_model: int,
         num_q_heads: int,
         num_kv_heads: int,
-        rope_theta: float,
-        max_seq_len: int,
+        rope_theta: float | None = None,
+        use_rope: bool = False,
+        max_seq_len: int =2048,
         device=None,
         dtype=None,
     ) -> None:
@@ -124,6 +125,12 @@ class GroupedQuerySelfAttention(nn.Module):
             device=device,
         )
 
+        # ---------------------------------------------------------
+        # Use RoPE in forward or not (fixed at init time)
+        # ---------------------------------------------------------
+
+        self.use_rope = bool(use_rope)
+
     # =============================================================
     # causal mask
     # =============================================================
@@ -144,6 +151,16 @@ class GroupedQuerySelfAttention(nn.Module):
 
         token_positions: (B, T) or (T,) (broadcastable to (B, T))
         """
+
+        # =========================================================
+        # 0️⃣ Consistency check for RoPE usage
+        # =========================================================
+
+        if self.use_rope and token_positions is None:
+            raise ValueError("self.use_rope=True but token_positions is None")
+
+        if (not self.use_rope) and (token_positions is not None):
+            raise ValueError("token_positions provided but self.use_rope=False")
 
         if x.dim() != 3:
             raise ValueError(
@@ -179,7 +196,9 @@ class GroupedQuerySelfAttention(nn.Module):
         # 3️⃣ token_positions broadcast
         # =========================================================
 
-        if token_positions is not None:
+        token_positions_bt = None
+
+        if self.use_rope:
             # 3️⃣ token_positions broadcast
             if token_positions.dim() == 1:         # (T,) -> (B,T)
                 token_positions_bt = token_positions.unsqueeze(0).expand(B, T)
@@ -192,20 +211,21 @@ class GroupedQuerySelfAttention(nn.Module):
         # 4️⃣ Apply RoPE
         # =========================================================
         # treat head as batch
-        if token_positions is not None:
-        # ---- Q ----
-          Q_bh = einx.rearrange("b t h d -> (b h) t d", Q)        # (B*Hq, T, D)
-          pos_q = token_positions_bt.unsqueeze(1).expand(B, Hq, T)        # (B, Hq, T)
-          pos_q = einx.rearrange("b h t -> (b h) t", pos_q)               # (B*Hq, T)
-          Q_bh = self.rope(Q_bh, pos_q)
-          Q = einx.rearrange("(b h) t d -> b t h d", Q_bh, b=B, h=Hq)
 
-          # ---- K ----
-          K_bh = einx.rearrange("b t h d -> (b h) t d", K)             # (B*Hkv, T, D)
-          pos_k = token_positions_bt.unsqueeze(1).expand(B, Hkv, T)           # (B, Hkv, T)
-          pos_k = einx.rearrange("b h t -> (b h) t", pos_k)           # (B*Hkv, T)
-          K_bh = self.rope(K_bh, pos_k)
-          K = einx.rearrange("(b h) t d -> b t h d", K_bh, b=B, h=Hkv)
+        if self.use_rope:
+            # ---- Q ----
+            Q_bh = einx.rearrange("b t h d -> (b h) t d", Q)        # (B*Hq, T, D)
+            pos_q = token_positions_bt.unsqueeze(1).expand(B, Hq, T)        # (B, Hq, T)
+            pos_q = einx.rearrange("b h t -> (b h) t", pos_q)               # (B*Hq, T)
+            Q_bh = self.rope(Q_bh, pos_q)
+            Q = einx.rearrange("(b h) t d -> b t h d", Q_bh, b=B, h=Hq)
+
+            # ---- K ----
+            K_bh = einx.rearrange("b t h d -> (b h) t d", K)             # (B*Hkv, T, D)
+            pos_k = token_positions_bt.unsqueeze(1).expand(B, Hkv, T)           # (B, Hkv, T)
+            pos_k = einx.rearrange("b h t -> (b h) t", pos_k)           # (B*Hkv, T)
+            K_bh = self.rope(K_bh, pos_k)
+            K = einx.rearrange("(b h) t d -> b t h d", K_bh, b=B, h=Hkv)
 
         # =========================================================
         # 5️⃣ Expand KV heads to match number of Q heads (GQA logic)

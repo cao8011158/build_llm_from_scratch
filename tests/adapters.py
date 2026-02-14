@@ -135,10 +135,10 @@ def run_multihead_self_attention(
         d_model=d_model,
         num_q_heads=num_heads,
         num_kv_heads=num_heads,      # <-- important: make it standard MHA behavior
-        rope_theta=10000.0,
         max_seq_len=2048,
         device=device,
         dtype=dtype,
+        use_rope =False
     ).eval()
 
     # ---- copy weights into your custom Linear layers ----
@@ -197,6 +197,7 @@ def run_multihead_self_attention_with_rope(
         max_seq_len=max_seq_len,
         device=device,
         dtype=dtype,
+        use_rope =True
     ).eval()
 
     # ---- copy weights into your custom Linear layers ----
@@ -306,6 +307,7 @@ def run_transformer_block(
         d_model=d_model,
         num_heads=num_heads,
         d_ff=d_ff,
+        use_rope= True,
         rope_theta=theta,
         max_seq_len=max_seq_len,
         device=device,
