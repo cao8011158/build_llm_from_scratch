@@ -152,10 +152,13 @@ def run_multihead_self_attention(
     if attn.WO.W.shape != o_proj_weight.shape:
         raise ValueError(f"WO shape mismatch: module {tuple(attn.WO.W.shape)} vs given {tuple(o_proj_weight.shape)}")
 
-    attn.WQ.W.copy_(q_proj_weight.to(device=device, dtype=dtype))
-    attn.WK.W.copy_(k_proj_weight.to(device=device, dtype=dtype))
-    attn.WV.W.copy_(v_proj_weight.to(device=device, dtype=dtype))
-    attn.WO.W.copy_(o_proj_weight.to(device=device, dtype=dtype))
+    state = {
+        "WQ.W": q_proj_weight.to(device=device, dtype=dtype),
+        "WK.W": k_proj_weight.to(device=device, dtype=dtype),
+        "WV.W": v_proj_weight.to(device=device, dtype=dtype),
+        "WO.W": o_proj_weight.to(device=device, dtype=dtype),
+    }
+    missing, unexpected = attn.load_state_dict(state, strict=False)
 
     # ---- token positions for RoPE ----
     T = in_features.shape[-2]
@@ -210,10 +213,13 @@ def run_multihead_self_attention_with_rope(
     if attn.WO.W.shape != o_proj_weight.shape:
         raise ValueError(f"WO shape mismatch: module {tuple(attn.WO.W.shape)} vs given {tuple(o_proj_weight.shape)}")
 
-    attn.WQ.W.copy_(q_proj_weight.to(device=device, dtype=dtype))
-    attn.WK.W.copy_(k_proj_weight.to(device=device, dtype=dtype))
-    attn.WV.W.copy_(v_proj_weight.to(device=device, dtype=dtype))
-    attn.WO.W.copy_(o_proj_weight.to(device=device, dtype=dtype))
+    state = {
+        "WQ.W": q_proj_weight.to(device=device, dtype=dtype),
+        "WK.W": k_proj_weight.to(device=device, dtype=dtype),
+        "WV.W": v_proj_weight.to(device=device, dtype=dtype),
+        "WO.W": o_proj_weight.to(device=device, dtype=dtype),
+    }
+    missing, unexpected = attn.load_state_dict(state, strict=False)
 
     # ---- token positions for RoPE ----
     T = in_features.shape[-2]
