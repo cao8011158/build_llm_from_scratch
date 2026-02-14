@@ -160,12 +160,9 @@ def run_multihead_self_attention(
     }
     missing, unexpected = attn.load_state_dict(state, strict=False)
 
-    # ---- token positions for RoPE ----
-    T = in_features.shape[-2]
-    token_positions = torch.arange(T, device=device)  # (T,)
 
     # ---- run forward ----
-    return attn(in_features, token_positions)
+    return attn(in_features, None)
 
 
 

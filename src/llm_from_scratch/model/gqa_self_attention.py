@@ -191,20 +191,20 @@ class GroupedQuerySelfAttention(nn.Module):
         # 4️⃣ Apply RoPE
         # =========================================================
         # treat head as batch
-
+        if token_positions is not None:
         # ---- Q ----
-        Q_bh = einx.rearrange("b t h d -> (b h) t d", Q)        # (B*Hq, T, D)
-        pos_q = token_positions_bt.unsqueeze(1).expand(B, Hq, T)        # (B, Hq, T)
-        pos_q = einx.rearrange("b h t -> (b h) t", pos_q)               # (B*Hq, T)
-        Q_bh = self.rope(Q_bh, pos_q)
-        Q = einx.rearrange("(b h) t d -> b t h d", Q_bh, b=B, h=Hq)
+          Q_bh = einx.rearrange("b t h d -> (b h) t d", Q)        # (B*Hq, T, D)
+          pos_q = token_positions_bt.unsqueeze(1).expand(B, Hq, T)        # (B, Hq, T)
+          pos_q = einx.rearrange("b h t -> (b h) t", pos_q)               # (B*Hq, T)
+          Q_bh = self.rope(Q_bh, pos_q)
+          Q = einx.rearrange("(b h) t d -> b t h d", Q_bh, b=B, h=Hq)
 
-        # ---- K ----
-        K_bh = einx.rearrange("b t h d -> (b h) t d", K)             # (B*Hkv, T, D)
-        pos_k = token_positions_bt.unsqueeze(1).expand(B, Hkv, T)           # (B, Hkv, T)
-        pos_k = einx.rearrange("b h t -> (b h) t", pos_k)           # (B*Hkv, T)
-        K_bh = self.rope(K_bh, pos_k)
-        K = einx.rearrange("(b h) t d -> b t h d", K_bh, b=B, h=Hkv)
+          # ---- K ----
+          K_bh = einx.rearrange("b t h d -> (b h) t d", K)             # (B*Hkv, T, D)
+          pos_k = token_positions_bt.unsqueeze(1).expand(B, Hkv, T)           # (B, Hkv, T)
+          pos_k = einx.rearrange("b h t -> (b h) t", pos_k)           # (B*Hkv, T)
+          K_bh = self.rope(K_bh, pos_k)
+          K = einx.rearrange("(b h) t d -> b t h d", K_bh, b=B, h=Hkv)
 
         # =========================================================
         # 5️⃣ Expand KV heads to match number of Q heads (GQA logic)
