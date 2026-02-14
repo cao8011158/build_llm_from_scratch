@@ -98,10 +98,10 @@ class TransformerLM(nn.Module):
         # Output layers
         self.norm_final = RMSNorm(d_model=self.d_model, device=device, dtype=dtype)
         self.lm_head = Linear(
-            d_in=self.d_model,
-            d_out=self.vocab_size,
-            device=device,
-            dtype=dtype,
+          in_features=self.d_model,
+          out_features=self.vocab_size,
+          device=device,
+          dtype=dtype,
         )
 
     def forward(self, token_ids: Tensor) -> Tensor:
