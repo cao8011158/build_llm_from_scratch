@@ -138,7 +138,7 @@ class GroupedQuerySelfAttention(nn.Module):
     # =============================================================
     # forward
     # =============================================================
-    def forward(self, x: Tensor, token_positions: Tensor) -> Tensor:
+    def forward(self, x: Tensor, token_positions: Tensor | None = None) -> Tensor:
         """
         x: (B, T, d_model)
 
@@ -179,13 +179,14 @@ class GroupedQuerySelfAttention(nn.Module):
         # 3️⃣ token_positions broadcast
         # =========================================================
 
-        if token_positions.dim() == 1:
-            # (T,) -> (B, T)
-            token_positions_bt = token_positions.unsqueeze(0).expand(B, T)
-        else:
-            token_positions_bt = token_positions
+        if token_positions is not None:
+            # 3️⃣ token_positions broadcast
+            if token_positions.dim() == 1:         # (T,) -> (B,T)
+                token_positions_bt = token_positions.unsqueeze(0).expand(B, T)
+            else:
+                token_positions_bt = token_positions
 
-        token_positions_bt = token_positions_bt.to(device=device)
+            token_positions_bt = token_positions_bt.to(device=device)
 
         # =========================================================
         # 4️⃣ Apply RoPE
