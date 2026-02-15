@@ -603,7 +603,7 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
 
     The gradients of the parameters (parameter.grad) should be modified in-place.
     """
-    from llm_from_scratch.model.optimizer.gradient_clipping import gradient_clipping
+    from llm_from_scratch.optimizer.gradient_clipping import gradient_clipping
     params = list(parameters)  # 防止 iterable 只能遍历一次
     gradient_clipping(params, max_l2_norm=max_l2_norm)
 
