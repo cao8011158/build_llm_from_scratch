@@ -610,7 +610,7 @@ def get_adamw_cls() -> Any:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
-    from llm_from_scratch.optimizer.adamw.py import AdamW
+    from llm_from_scratch.optimizer.adamw import AdamW
     return AdamW
 
 
