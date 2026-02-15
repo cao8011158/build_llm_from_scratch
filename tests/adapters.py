@@ -37,9 +37,6 @@ def run_embedding(
     weights: Float[Tensor, " vocab_size d_model"],
     token_ids: Int[Tensor, " ..."],
 ) -> Float[Tensor, " ... d_model"]:
-    """
-    Given the weights of an Embedding layer, get the embeddings for a batch of token ids.
-    """
 
     # 1️⃣ import your module
     from llm_from_scratch.model.embedding import Embedding
@@ -225,32 +222,6 @@ def run_multihead_self_attention_with_rope(
 
     # ---- run forward ----
     return attn(in_features, token_positions)
-    """
-    Given the key, query, and value projection weights of a naive unbatched
-    implementation of multi-head attention, return the output of an optimized batched
-    implementation. This implementation should handle the key, query, and value projections
-    for all heads in a single matrix multiply.
-    This version of MHA should include RoPE.
-    In this case, the RoPE embedding dimension must be the head embedding dimension (d_model // num_heads).
-    See section 3.2.2 of Vaswani et al., 2017.
-
-    Args:
-        d_model (int): Dimensionality of the feedforward input and output.
-        num_heads (int): Number of heads to use in multi-headed attention.
-        max_seq_len (int): Maximum sequence length to pre-cache if your implementation does that.
-        theta (float): RoPE parameter.
-        q_proj_weight (Float[Tensor, "d_k d_in"]): Weights for the Q projection
-        k_proj_weight (Float[Tensor, "d_k d_in"]): Weights for the K projection
-        v_proj_weight (Float[Tensor, "d_k d_in"]): Weights for the V projection
-        o_proj_weight (Float[Tensor, "d_model d_v"]): Weights for the output projection
-        in_features (Float[Tensor, "... sequence_length d_in"]): Tensor to run your implementation on.
-        token_positions (Int[Tensor, " ... sequence_length"] | None): Optional tensor with the positions of the tokens
-
-    Returns:
-        Float[Tensor, " ... sequence_length d_out"]: Tensor with the output of running your optimized, batched multi-headed attention
-        implementation with the given QKV projection weights and input features.
-    """
-    raise NotImplementedError
 
 
 def run_rope(
@@ -260,18 +231,6 @@ def run_rope(
     in_query_or_key: Float[Tensor, " ... sequence_length d_k"],
     token_positions: Int[Tensor, " ... sequence_length"],
 ) -> Float[Tensor, " ... sequence_length d_k"]:
-    """
-    Run RoPE for a given input tensor.
-
-    Args:
-        d_k (int): Embedding dimension size for the query or key tensor.
-        theta (float): RoPE parameter.
-        max_seq_len (int): Maximum sequence length to pre-cache if your implementation does that.
-        in_query_or_key (Float[Tensor, "... sequence_length d_k"]): Input tensor to run RoPE on.
-        token_positions (Int[Tensor, "... sequence_length"]): Tensor of shape (batch_size, sequence_length) with the token positions
-    Returns:
-        Float[Tensor, " ... sequence_length d_k"]: Tensor with RoPEd input.
-    """
     from llm_from_scratch.model.RoPE import RotaryPositionalEmbedding
     rope = RotaryPositionalEmbedding(
         theta=theta,
@@ -356,67 +315,6 @@ def run_transformer_block(
         out = block(x, token_positions=token_positions)
 
     return out
-    """
-    Given the weights of a pre-norm Transformer block and input features,
-    return the output of running the Transformer block on the input features.
-
-    This function should use RoPE.
-    Depending on your implementation, you may simply need to pass the relevant args
-    to your TransformerBlock constructor, or you may need to initialize your own RoPE
-    class and pass that instead.
-
-    Args:
-        d_model (int): The dimensionality of the Transformer block input.
-        num_heads (int): Number of heads to use in multi-headed attention. `d_model` must be
-            evenly divisible by `num_heads`.
-        d_ff (int): Dimensionality of the feed-forward inner layer.
-        max_seq_len (int): Maximum sequence length to pre-cache if your implementation does that.
-        theta (float): RoPE parameter.
-        weights (dict[str, Tensor]):
-            State dict of our reference implementation.
-            The keys of this dictionary are:
-            - `attn.q_proj.weight`
-                The query projections for all `num_heads` attention heads.
-                Shape is (d_model, d_model).
-                The rows are ordered by matrices of shape (num_heads, d_k),
-                so `attn.q_proj.weight == torch.cat([q_heads.0.weight, ..., q_heads.N.weight], dim=0)`.
-            - `attn.k_proj.weight`
-                The key projections for all `num_heads` attention heads.
-                Shape is (d_model, d_model).
-                The rows are ordered by matrices of shape (num_heads, d_k),
-                so `attn.k_proj.weight == torch.cat([k_heads.0.weight, ..., k_heads.N.weight], dim=0)`.
-            - `attn.v_proj.weight`
-                The value projections for all `num_heads` attention heads.
-                Shape is (d_model, d_model).
-                The rows are ordered by matrices of shape (num_heads, d_v),
-                so `attn.v_proj.weight == torch.cat([v_heads.0.weight, ..., v_heads.N.weight], dim=0)`.
-            - `attn.output_proj.weight`
-                Weight of the multi-head self-attention output projection
-                Shape is (d_model, d_model).
-            - `ln1.weight`
-                Weights of affine transform for the first RMSNorm
-                applied in the transformer block.
-                Shape is (d_model,).
-            - `ffn.w1.weight`
-                Weight of the first linear transformation in the FFN.
-                Shape is (d_model, d_ff).
-            - `ffn.w2.weight`
-                Weight of the second linear transformation in the FFN.
-                Shape is (d_ff, d_model).
-            - `ffn.w3.weight`
-                Weight of the third linear transformation in the FFN.
-                Shape is (d_model, d_ff).
-            - `ln2.weight`
-                Weights of affine transform for the second RMSNorm
-                applied in the transformer block.
-                Shape is (d_model,).
-        in_features (Float[Tensor, "batch sequence_length d_model"]):
-            Tensor to run your implementation on.
-
-    Returns:
-        Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
-        running the Transformer block on the input features while using RoPE.
-    """
 
 
 
@@ -586,14 +484,7 @@ def run_cross_entropy(
 
 
 def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float) -> None:
-    """Given a set of parameters, clip their combined gradients to have l2 norm at most max_l2_norm.
 
-    Args:
-        parameters (Iterable[torch.nn.Parameter]): collection of trainable parameters.
-        max_l2_norm (float): a positive value containing the maximum l2-norm.
-
-    The gradients of the parameters (parameter.grad) should be modified in-place.
-    """
     from llm_from_scratch.optimizer.gradient_clipping import gradient_clipping
     params = list(parameters)  # 防止 iterable 只能遍历一次
     gradient_clipping(params, max_l2_norm=max_l2_norm)
@@ -601,9 +492,6 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
 
 
 def get_adamw_cls() -> Any:
-    """
-    Returns a torch.optim.Optimizer that implements AdamW.
-    """
     from llm_from_scratch.optimizer.adamw import AdamW
     return AdamW
 
@@ -615,24 +503,6 @@ def run_get_lr_cosine_schedule(
     warmup_iters: int,
     cosine_cycle_iters: int,
 ):
-    """
-    Given the parameters of a cosine learning rate decay schedule (with linear
-    warmup) and an iteration number, return the learning rate at the given
-    iteration under the specified schedule.
-
-    Args:
-        it (int): Iteration number to get learning rate for.
-        max_learning_rate (float): alpha_max, the maximum learning rate for
-            cosine learning rate schedule (with warmup).
-        min_learning_rate (float): alpha_min, the minimum / final learning rate for
-            the cosine learning rate schedule (with warmup).
-        warmup_iters (int): T_w, the number of iterations to linearly warm-up
-            the learning rate.
-        cosine_cycle_iters (int): T_c, the number of cosine annealing iterations.
-
-    Returns:
-        Learning rate at the given iteration under the specified schedule.
-    """
     from llm_from_scratch.optimizer.schedule import lr_cosine_schedule
     return lr_cosine_schedule(
         t=it,
@@ -649,17 +519,14 @@ def run_save_checkpoint(
     iteration: int,
     out: str | os.PathLike | BinaryIO | IO[bytes],
 ):
-    """
-    Given a model, optimizer, and an iteration number, serialize them to disk.
+    from llm_from_scratch.serialization.checkpointing import save_checkpoint
+    save_checkpoint(
+        model=model,
+        optimizer=optimizer,
+        iteration=iteration,
+        out=out,
+    )
 
-    Args:
-        model (torch.nn.Module): Serialize the state of this model.
-        optimizer (torch.optim.Optimizer): Serialize the state of this optimizer.
-        iteration (int): Serialize this value, which represents the number of training iterations
-            we've completed.
-        out (str | os.PathLike | BinaryIO | IO[bytes]): Path or file-like object to serialize the model, optimizer, and iteration to.
-    """
-    raise NotImplementedError
 
 
 def run_load_checkpoint(
@@ -667,20 +534,13 @@ def run_load_checkpoint(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
 ) -> int:
-    """
-    Given a serialized checkpoint (path or file-like object), restore the
-    serialized state to the given model and optimizer.
-    Return the number of iterations that we previously serialized in
-    the checkpoint.
-
-    Args:
-        src (str | os.PathLike | BinaryIO | IO[bytes]): Path or file-like object to serialized checkpoint.
-        model (torch.nn.Module): Restore the state of this model.
-        optimizer (torch.optim.Optimizer): Restore the state of this optimizer.
-    Returns:
-        int: the previously-serialized number of iterations.
-    """
-    raise NotImplementedError
+    from llm_from_scratch.serialization.checkpointing import load_checkpoint
+    iteration = load_checkpoint(
+        src=src,
+        model=model,
+        optimizer=optimizer,
+    )
+    return iteration
 
 
 def get_tokenizer(

@@ -12,6 +12,7 @@ data:
     owt:
       train_file: owt_train.txt
       valid_file: owt_valid.txt
+
 # =========================
 # Tokenizer
 # =========================
@@ -23,31 +24,15 @@ tokenizer:
   # 保存路径
   save_dir: /content/drive/MyDrive/build_llm_from_scratch/tokenizer
 
-# =========================
-# Model
-# =========================
-model:
-  d_model: 512
-  n_heads: 8
-  n_layers: 6
-  seq_len: 256
-  dropout: 0.1
-
-# =========================
-# Training
-# =========================
-training:
-  batch_size: 16
-  lr: 3e-4
-  max_steps: 20000
-  eval_interval: 500
-  save_interval: 1000
-
-  # checkpoints
+# ==========================
+# Checkpointing
+# ==========================
+checkpoint:
+  # checkpoint 目录（建议放到你的 drive 里）
   save_dir: /content/drive/MyDrive/build_llm_from_scratch/checkpoints
 
-# =========================
-# Device
-# =========================
-device:
-  type: cuda
+  # （可选）命名模板：默认会保存成 ckpt_step00000010.pt 这种
+  filename_prefix: ckpt_step
+
+  # （可选）是否额外保存一个 latest.pt 的软链接/副本（Colab/Drive 下建议用“副本”）
+  write_latest: true
