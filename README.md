@@ -241,7 +241,7 @@ Latest model:
 
 https://drive.google.com/file/d/1xl1w4ITVL2dt5uzbhkoE1J6eDEBA0kVX/view?usp=sharing
 
-Update:
+Then update `configs/decode_tinystories.yaml`:
 
 ```yaml
 checkpoint:
@@ -254,7 +254,7 @@ checkpoint:
 
 https://drive.google.com/drive/folders/1a-bsE5-vpHNI83qD6KuJGGvWsXOrq3Dv?usp=sharing
 
-Update:
+Then update `configs/decode_tinystories.yaml`:
 
 ```yaml
 tokenizer:
