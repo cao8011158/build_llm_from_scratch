@@ -283,6 +283,3 @@ Extended with:
 
 - Grouped-Query Attention
 - Online Softmax
-- Custom optimizer implementations
-- Full training pipeline
-- Checkpointing & decoding support

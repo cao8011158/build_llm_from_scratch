@@ -90,6 +90,15 @@ def generate_tokens(
         next_id = torch.multinomial(probs, num_samples=1).item()
         x = torch.cat([x, torch.tensor([next_id], device=device, dtype=torch.long)], dim=0)
 
+        # ===== DEBUG =====
+        decoded_tail = tok.decode(x.tolist()[-50:])
+        if "<|endoftext|>" in decoded_tail:
+            print("tail ids:", x.tolist()[-30:])
+            print("tail text:", decoded_tail)
+            print("last_id:", x.tolist()[-1], "eos_id:", eos_id)
+            break
+        # ==================
+
         if eos_id is not None and next_id == eos_id:
             break
 
@@ -244,6 +253,11 @@ def main() -> None:
         special_tokens=[eos_token],
     )
     eos_id = tok.special_token_to_id.get(eos_token)
+
+    print("eos_token:", eos_token)
+    print("eos_id:", eos_id)
+    print("encode(eos_token):", tok.encode(eos_token))
+    print("decode([eos_id]):", tok.decode([eos_id]) if eos_id is not None else None)
 
     # -----------------------------
     # Model + checkpoint
