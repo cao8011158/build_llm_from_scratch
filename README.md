@@ -222,7 +222,7 @@ Latest trained model (`latest.pt`):
 
 https://drive.google.com/file/d/1xl1w4ITVL2dt5uzbhkoE1J6eDEBA0kVX/view?usp=sharing
 
-update the following field in: configs/decode_tinystories.yaml
+Update the following field in `configs/decode_tinystories.yaml`:
 
 ```yaml
 checkpoint:
@@ -235,7 +235,7 @@ Tokenizer files are available here:
 
 https://drive.google.com/drive/folders/1a-bsE5-vpHNI83qD6KuJGGvWsXOrq3Dv?usp=sharing
 
-update the following field in: configs/decode_tinystories.yaml
+Update the following field in `configs/decode_tinystories.yaml`:
 
 ```yaml
 tokenizer:
