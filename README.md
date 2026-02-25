@@ -120,11 +120,22 @@ Update paths in `configs/training_config.yaml`, then run:
 python -m src.llm_from_scratch.serialization.build_bin_dataset
 ```
 
-### 4️⃣ Run Smoke Test
+### 4️⃣ Run Smoke Test and Overfitting Test
 
 ```bash
 python train.py --config configs/smoke.yaml
 ```
+
+the Overfitting Test force the model to overfit a single batch (useful for debugging loss / gradients):
+
+```bash
+python train.py --config configs/test_overfitting.yaml
+```
+
+Expected behavior:
+
+- Training loss should rapidly decrease
+- The model should nearly memorize the batch
 
 ### 5️⃣ Start Training
 
@@ -201,12 +212,45 @@ The attention block implements an incremental (online) softmax algorithm, which:
 Increasing the learning rate improved convergence within the tested range.
 Due to computational constraints, higher learning rates were not explored further.
 
+## 🔗 Pretrained Checkpoint & Tokenizer
+
+To reproduce the results without retraining, you can download the pretrained checkpoint and tokenizer files:
+
+### 📦 Model Checkpoint
+
+Latest trained model (`latest.pt`):
+
+https://drive.google.com/file/d/1xl1w4ITVL2dt5uzbhkoE1J6eDEBA0kVX/view?usp=sharing
+
+update the following field in: configs/decode_tinystories.yaml
+
+```yaml
+checkpoint:
+  path: /path/to/latest.pt
+```
+
+### 🧩 Tokenizer (TinyStories BPE)
+
+Tokenizer files are available here:
+
+https://drive.google.com/drive/folders/1a-bsE5-vpHNI83qD6KuJGGvWsXOrq3Dv?usp=sharing
+
+update the following field in: configs/decode_tinystories.yaml
+
+```yaml
+tokenizer:
+  vocab_file: /path/to/tinystories_train_v10000_vocab.json
+  merges_file: /path/to/tinystories_train_v10000_merges.json
+```
+
+then run:
+
+```bash
+python generate.py --config configs/decode_tinystories.yaml
+```
+
 ## 📚 Acknowledgements
 
 -This project is based on the Stanford CS336 Assignment 1 (Basics) starter code and structure, and has been extended with additional components
 
 -Source: https://github.com/stanford-cs336/assignment1-basics/tree/main
-
-```
-
-```

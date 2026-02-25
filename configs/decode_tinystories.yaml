@@ -1,0 +1,49 @@
+# configs/decode_tinystories.yaml
+# Standalone decoding config (no _base_ / no inheritance).
+
+# =========================
+# Checkpoint
+# =========================
+checkpoint:
+  path: /content/drive/MyDrive/build_llm_from_scratch/checkpoints/tinystories_lr3e-3_bs256_steps5000/latest.pt
+
+# =========================
+# Tokenizer (BPE)
+# =========================
+tokenizer:
+  vocab_file: /content/drive/MyDrive/build_llm_from_scratch/tokenizers/tinystories_train/tinystories_train_v10000_vocab.json
+  merges_file: /content/drive/MyDrive/build_llm_from_scratch/tokenizers/tinystories_train/tinystories_train_v10000_merges.json
+
+# =========================
+# Model (must match training)
+# =========================
+model:
+  vocab_size: 10000
+  context_length: 256
+  num_layers: 4
+  num_heads: 16
+  d_model: 512
+  ffn_multiplier: 2.6667
+  dropout: 0.0
+  use_rope: true
+  rope_theta: 10000.0
+
+# =========================
+# Runtime (inference)
+# =========================
+training:
+  # Reuse the same key name "training" so generate.py can read it
+  device: cuda
+  dtype: bf16
+  seed: 1337
+
+# =========================
+# Decoding controls
+# =========================
+decoding:
+  prompt: "Once upon a time"
+  max_new_tokens: 200
+  temperature: 0.9
+  top_p: 0.95
+  eos_token: "<|endoftext|>"
+  include_prompt_in_output: true
