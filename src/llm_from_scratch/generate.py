@@ -64,11 +64,19 @@ def generate_tokens(
     temperature: float,
     top_p: float,
     eos_id: Optional[int],
+    eos_token: Optional[str],
+    stop_on_eos_text: bool = True,
+    eos_text_window: int = 100,
 ) -> torch.Tensor:
     """
     Autoregressive decoding loop.
 
     Returns a 1D LongTensor containing: prompt_ids + generated_ids.
+
+    Notes:
+      - We try token-level stopping first: next_id == eos_id
+      - If the model never emits eos_id (common if eos wasn't used during training),
+        we optionally fall back to string-level stopping: eos_token appears in decoded tail.
     """
     model.eval()
 
@@ -90,17 +98,16 @@ def generate_tokens(
         next_id = torch.multinomial(probs, num_samples=1).item()
         x = torch.cat([x, torch.tensor([next_id], device=device, dtype=torch.long)], dim=0)
 
-        # ===== DEBUG =====
-        decoded_tail = tok.decode(x.tolist()[-50:])
-        if "<|endoftext|>" in decoded_tail:
-            print("tail ids:", x.tolist()[-30:])
-            print("tail text:", decoded_tail)
-            print("last_id:", x.tolist()[-1], "eos_id:", eos_id)
-            break
-        # ==================
-
+        # 1) Token-level EOS stop (best case)
         if eos_id is not None and next_id == eos_id:
             break
+
+        # 2) String-level EOS stop (fallback)
+        if stop_on_eos_text and eos_token:
+            tail_ids = x.tolist()[-eos_text_window:]
+            tail_text = tok.decode(tail_ids)
+            if eos_token in tail_text:
+                break
 
     return x
 
@@ -112,14 +119,11 @@ def build_model_from_training_config(settings: Dict[str, Any]) -> Tuple[Transfor
     """
     Build TransformerLM from your training config.
 
-    Your YAML uses:
-      - model.context_length
-      - model.ffn_multiplier
+    Training script derives:
+      d_ff = round(d_model * ffn_multiplier)
+      d_ff = ceil(d_ff / 64) * 64
 
-    TransformerLM expects:
-      - max_seq_len
-      - d_ff
-
+    We replicate that exactly here to match checkpoint shapes.
     """
     mcfg = settings["model"]
 
@@ -157,8 +161,8 @@ def resolve_checkpoint_path(settings: Dict[str, Any]) -> Path:
     Resolve checkpoint path from config.
 
     Supports:
-      - checkpoint.path (optional, if you add it later)
-      - checkpoint.save_dir + 'latest.pt' (your current training config)
+      - checkpoint.path
+      - checkpoint.save_dir + 'latest.pt'
     """
     ckpt_cfg = settings.get("checkpoint", {})
 
@@ -193,14 +197,13 @@ def main() -> None:
         help="Path to YAML config (e.g., configs/decode_tinystories.yaml).",
     )
 
-    # Prompt / decoding overrides (CLI should override config; config provides defaults)
-    # IMPORTANT: default=None so we can detect whether user explicitly set it on CLI.
-    parser.add_argument("--prompt", type=str, default=None, help="Text prompt to condition on (overrides config).")
+    # Prompt / decoding overrides (CLI overrides config; config provides defaults)
+    parser.add_argument("--prompt", type=str, default=None, help="Text prompt (overrides config).")
     parser.add_argument("--max_new_tokens", type=int, default=None, help="Max new tokens (overrides config).")
-    parser.add_argument("--temperature", type=float, default=None, help="Softmax temperature (overrides config).")
-    parser.add_argument("--top_p", type=float, default=None, help="Top-p nucleus sampling threshold (overrides config).")
+    parser.add_argument("--temperature", type=float, default=None, help="Temperature (overrides config).")
+    parser.add_argument("--top_p", type=float, default=None, help="Top-p (overrides config).")
 
-    # Optional behaviors (CLI overrides config too, but these are simple toggles)
+    # Optional behaviors
     parser.add_argument("--include_prompt", action="store_true", help="Print prompt + completion.")
     parser.add_argument("--only_completion", action="store_true", help="Print only the generated continuation.")
 
@@ -250,14 +253,9 @@ def main() -> None:
     tok = Tokenizer.from_files(
         vocab_filepath=vocab_file,
         merges_filepath=merges_file,
-        special_tokens=[eos_token],
+        special_tokens=[eos_token] if eos_token else None,
     )
-    eos_id = tok.special_token_to_id.get(eos_token)
-
-    print("eos_token:", eos_token)
-    print("eos_id:", eos_id)
-    print("encode(eos_token):", tok.encode(eos_token))
-    print("decode([eos_id]):", tok.decode([eos_id]) if eos_id is not None else None)
+    eos_id = tok.special_token_to_id.get(eos_token) if eos_token else None
 
     # -----------------------------
     # Model + checkpoint
@@ -284,7 +282,6 @@ def main() -> None:
     if unexpected:
         print(f"[warn] Unexpected keys when loading state_dict (strict=False): {len(unexpected)}")
 
-    
     # =============================
     # Print decoding configuration
     # =============================
@@ -310,17 +307,26 @@ def main() -> None:
         temperature=float(temperature),
         top_p=float(top_p),
         eos_id=eos_id,
+        eos_token=eos_token,
+        stop_on_eos_text=True,   
+        eos_text_window=150,     
     )
 
     # -----------------------------
-    # Print
+    # Print (strip eos_token text if present)
     # -----------------------------
     if include_prompt_in_output:
-        print(tok.decode(out_ids.tolist()))
+        text = tok.decode(out_ids.tolist())
     else:
         prompt_ids = tok.encode(prompt)
         completion_ids = out_ids.tolist()[len(prompt_ids):]
-        print(tok.decode(completion_ids))
+        text = tok.decode(completion_ids)
+
+    # Remove eos_token and anything after it (clean output)
+    if eos_token:
+        text = text.split(eos_token)[0]
+
+    print(text)
 
 
 if __name__ == "__main__":
