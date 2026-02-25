@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -110,9 +111,6 @@ def build_model_from_training_config(settings: Dict[str, Any]) -> Tuple[Transfor
       - max_seq_len
       - d_ff
 
-    So we map:
-      max_seq_len = context_length
-      d_ff = round(ffn_multiplier * d_model)
     """
     mcfg = settings["model"]
 
@@ -126,6 +124,7 @@ def build_model_from_training_config(settings: Dict[str, Any]) -> Tuple[Transfor
 
     ffn_multiplier = float(mcfg.get("ffn_multiplier", 4.0))
     d_ff = int(round(ffn_multiplier * d_model))
+    d_ff = int(math.ceil(d_ff / 64) * 64)
 
     use_rope = bool(mcfg.get("use_rope", False))
     rope_theta = mcfg.get("rope_theta", None)

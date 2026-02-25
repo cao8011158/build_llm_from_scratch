@@ -2,255 +2,287 @@
 
 A minimal-from-scratch Transformer language model training stack:
 
-**Tokenizer (BPE) → binarized token dataset → TransformerLM (GQA + RoPE,
-RMSNorm, FFN) → training with custom optimizers & schedulers**
+**Tokenizer (BPE) → binarized dataset → TransformerLM (GQA + RoPE + RMSNorm + Online Softmax) → training with custom optimizers & schedulers**
 
-This project implements a full small-scale language model training
-pipeline from scratch, including tokenizer training, dataset
-binarization, Transformer architecture, optimization, and checkpointing.
+This project implements a complete small-scale language model training
+pipeline from scratch, including:
+
+- Tokenizer training (BPE)
+- Dataset binarization
+- Transformer architecture
+- Custom attention (Grouped-Query Attention + RoPE)
+- Online softmax
+- Optimizers & LR schedules
+- Checkpointing & decoding
 
 ---
 
 ## 🚀 Features
 
-- **Tokenizer**
-  - BPE training
-  - Pretokenization pipeline\
-  - Located in: `src/llm_from_scratch/tokenizer/`
-- **Dataset**
-  - Build `.bin` token dataset
-  - Efficient batch loading
-  - Located in: `src/llm_from_scratch/data/` and `serialization/`
-- **Model**
-  - TransformerLM
-  - Grouped-Query Attention (GQA)
-  - RoPE positional encoding
-  - RMSNorm
-  - Feedforward layers
-  - Located in: `src/llm_from_scratch/model/`
-- **Training**
-  - YAML-based config system
-  - AdamW / SGD optimizers
-  - Learning rate schedules
-  - Gradient clipping
-  - Checkpointing support
+### 🧩 Tokenizer
+
+- BPE training
+- Pretokenization pipeline
+- Standalone or pipeline mode
+- Located in: `src/llm_from_scratch/tokenizer/`
+
+### 📦 Dataset
+
+- Build `.bin` token datasets
+- Efficient memory-mapped loading
+- Random contiguous sequence sampling
+- Located in: `src/llm_from_scratch/data/` and `serialization/`
+
+### 🧠 Model
+
+- TransformerLM
+- Grouped-Query Attention (GQA)
+- Rotary Positional Embeddings (RoPE)
+- RMSNorm
+- Online Softmax (blockwise incremental softmax)
+- Feedforward layers
+- Located in: `src/llm_from_scratch/model/`
+
+### 🏋️ Training
+
+- YAML-based configuration system
+- AdamW / SGD
+- Cosine LR schedule with warmup
+- Gradient clipping
+- Checkpoint save & resume
 
 ---
 
 ## 📦 Project Structure
 
-    BUILD_LLM_FROM_SCRATCH/
-      configs/
-        smoke.yaml
-        test_overfitting.yaml
-        training_config.yaml
-        training_config_lr*.yaml
-      src/llm_from_scratch/
-        data/
-          get_batch.py
-        loss/
-          cross_entropy.py
-        model/
-          embedding.py
-          gqa_self_attention.py
-          linear.py
-          positional_embedding.py
-          RMSNorm.py
-          transformer_block.py
-          transformer_lm.py
-          ops/
-        optimizer/
-          adamw.py
-          sgd.py
-          schedule.py
-          gradient_clipping.py
-        serialization/
-          build_bin_dataset.py
-          checkpointing.py
-        tokenizer/
-          bpe_tokenizer.py
-          pretokenization.py
-          train_bpe.py
-          pretokenization_example.py
+```
+BUILD_LLM_FROM_SCRATCH/
+│
+├── configs/
+│   ├── smoke.yaml
+│   ├── test_overfitting.yaml
+│   ├── training_config.yaml
+│   └── training_config_lr*.yaml
+│
+├── src/llm_from_scratch/
+│   ├── data/
+│   ├── loss/
+│   ├── model/
+│   ├── optimizer/
+│   ├── serialization/
+│   ├── tokenizer/
+│   ├── train.py
+│   └── generate.py
+│
+└── pyproject.toml
+```
 
 ---
 
-## ⚙️ Quickstart
+# ⚙️ Setup
 
-### 1️⃣ Setup
+This project uses a `pyproject.toml`-based setup.
 
-This project uses `pyproject.toml` for dependency management.
+## Recommended (uv)
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
 pip install -e .
 ```
 
-### 2️⃣ Train Tokenizer
+Or using uv:
 
-### 🟢 Option 1 --- Train from a Single Text File (No Config Required)
+```bash
+uv pip install -e .
+```
+
+After installation, all modules can be executed via:
+
+```bash
+python -m llm_from_scratch.<module>
+```
+
+---
+
+# 🧩 Tokenizer
+
+## 🟢 Option 1 — Train from Single Text File
 
 ```bash
 python -m llm_from_scratch.tokenizer.train_bpe \
-  --input-file path/to/text_corpus.txt \
+  --input-file path/to/text.txt \
   --out-dir artifacts/bpe \
   --vocab-size 32000
 ```
 
-### 🔵 Option 2 --- Train Using Dataset + Config (Pipeline Mode)
-
-Use this mode when working with the full LLM training pipeline
-(TinyStories, OWT, etc.).
+## 🔵 Option 2 — Train via Config (Pipeline Mode, Recommended)
 
 ```bash
 python -m llm_from_scratch.tokenizer.train_bpe \
-  --dataset tinystories \
-  --config configs/training_config.yaml \
-  --out-dir artifacts/bpe \
-  --vocab-size 32000
+  --config configs/training_config.yaml
 ```
 
-### 3️⃣ Build Bin Dataset
+---
 
-Update paths in `configs/training_config.yaml`, then run:
+# 📦 Build Binary Dataset
+
+After updating dataset paths inside `configs/training_config.yaml`, run:
 
 ```bash
-python -m src.llm_from_scratch.serialization.build_bin_dataset
+python -m llm_from_scratch.serialization.build_bin_dataset
 ```
 
-### 4️⃣ Run Smoke Test and Overfitting Test
+---
+
+# 🧪 Debugging Modes
+
+## Smoke Test
 
 ```bash
-python train.py --config configs/smoke.yaml
+python -m llm_from_scratch.train \
+  --config configs/smoke.yaml
 ```
 
-the Overfitting Test force the model to overfit a single batch (useful for debugging loss / gradients):
+## Overfitting Test
 
 ```bash
-python train.py --config configs/test_overfitting.yaml
+python -m llm_from_scratch.train \
+  --config configs/test_overfitting.yaml
 ```
 
 Expected behavior:
 
-- Training loss should rapidly decrease
-- The model should nearly memorize the batch
+- Loss rapidly decreases
+- Model memorizes a single batch
+- Useful for debugging attention / gradients
 
-### 5️⃣ Start Training
+---
+
+# 🚀 Full Training
 
 ```bash
-python train.py --config configs/training_config.yaml
+python -m llm_from_scratch.train \
+  --config configs/training_config.yaml
 ```
 
 ---
 
-## 🧠 Implementation Notes
+# 🧠 Implementation Notes
 
-### GQA Attention
+## Grouped-Query Attention (GQA)
 
 - Q uses `n_heads`
 - K/V use `n_kv_heads`
 - K/V are expanded to match Q heads
-- RoPE is applied to Q and K before attention computation
-- Online Softmax is used for numerically stable and memory-efficient attention computation
+- RoPE applied to Q and K
+- Causal masking
+- Online Softmax computation
 
-### Online Softmax
+## Online Softmax
 
-The attention block implements an incremental (online) softmax algorithm, which:
+The attention block implements incremental softmax:
 
-- Computes attention scores in a streaming/blockwise manner
-- Maintains running max and normalization terms
-- Improves numerical stability
-- Reduces peak memory usage compared to naive full softmax
+- Streaming/blockwise score computation
+- Running max tracking
+- Running normalization tracking
+- Numerically stable
+- Lower peak memory usage
 
-### Dataset Format
+## Dataset Format
 
 - `.bin` files contain token IDs
 - Stored as contiguous integer arrays
-- Loaded efficiently using memory mapping (`numpy.memmap`)
-- Random contiguous sequences sampled during training
+- Loaded via `numpy.memmap`
+- High-throughput random sequence sampling
 
-## 📊 Results
+---
 
-### Final Model Configuration
+# 📊 Results
+
+## Final Model Configuration
 
 - Dataset: TinyStories (~2GB)
-- Transformer Layers: 4
-- Attention Heads: 16
-- Hidden Dimension: 512
-- Vocabulary Size: 10,000
-- Total Parameters: ~17M
-- Batch Size: 256
-- Training Steps: 5,000
-- Total Tokens Seen: ~327M
+- Layers: 4
+- Heads: 16
+- Hidden size: 512
+- Vocab size: 10,000
+- Parameters: ~17M
+- Batch size: 256
+- Steps: 5,000
+- Tokens seen: ~327M
 - Precision: bf16
 - Optimizer: AdamW
-- LR Schedule: Cosine decay with 250-step warmup
-- Gradient Clipping: 1.0
+- LR schedule: Cosine + 250 warmup
+- Gradient clipping: 1.0
 
 ---
 
-### Learning Rate Sweep
+## Learning Rate Sweep
 
-| Learning Rate | Val Loss  | Val Perplexity |
-| ------------- | --------- | -------------- |
-| 2e-4          | 2.65      | 14.20          |
-| 3e-4          | 2.31      | 10.04          |
-| 6e-4          | 1.75      | 5.77           |
-| 1e-3          | 1.55      | 4.73           |
-| 3e-3          | **1.517** | **4.56**       |
+| Learning Rate | Val Loss  | Val PPL  |
+| ------------- | --------- | -------- |
+| 2e-4          | 2.65      | 14.20    |
+| 3e-4          | 2.31      | 10.04    |
+| 6e-4          | 1.75      | 5.77     |
+| 1e-3          | 1.55      | 4.73     |
+| 3e-3          | **1.517** | **4.56** |
+
+Best LR: **3e-3**
 
 ---
 
-### Best Model
+# 🔗 Pretrained Checkpoint & Tokenizer
 
-- Best Learning Rate: **3e-3**
-- Final Validation Loss: **1.517**
-- Final Validation Perplexity: **4.56**
+## Model Checkpoint
 
-Increasing the learning rate improved convergence within the tested range.
-Due to computational constraints, higher learning rates were not explored further.
-
-## 🔗 Pretrained Checkpoint & Tokenizer
-
-To reproduce the results without retraining, you can download the pretrained checkpoint and tokenizer files:
-
-### 📦 Model Checkpoint
-
-Latest trained model (`latest.pt`):
+Latest model:
 
 https://drive.google.com/file/d/1xl1w4ITVL2dt5uzbhkoE1J6eDEBA0kVX/view?usp=sharing
 
-Update the following field in `configs/decode_tinystories.yaml`:
+Update:
 
 ```yaml
 checkpoint:
   path: /path/to/latest.pt
 ```
 
-### 🧩 Tokenizer (TinyStories BPE)
+---
 
-Tokenizer files are available here:
+## Tokenizer Files
 
 https://drive.google.com/drive/folders/1a-bsE5-vpHNI83qD6KuJGGvWsXOrq3Dv?usp=sharing
 
-Update the following field in `configs/decode_tinystories.yaml`:
+Update:
 
 ```yaml
 tokenizer:
-  vocab_file: /path/to/tinystories_train_v10000_vocab.json
-  merges_file: /path/to/tinystories_train_v10000_merges.json
+  vocab_file: /path/to/vocab.json
+  merges_file: /path/to/merges.txt
 ```
 
-then run:
+Then run:
 
 ```bash
-python generate.py --config configs/decode_tinystories.yaml
+python -m llm_from_scratch.generate \
+  --config configs/decode_tinystories.yaml
 ```
 
-## 📚 Acknowledgements
+---
 
--This project is based on the Stanford CS336 Assignment 1 (Basics) starter code and structure, and has been extended with additional components
+# 📚 Acknowledgements
 
--Source: https://github.com/stanford-cs336/assignment1-basics/tree/main
+This project is based on:
+
+Stanford CS336 Assignment 1 (Basics)
+
+https://github.com/stanford-cs336/assignment1-basics/tree/main
+
+Extended with:
+
+- Grouped-Query Attention
+- Online Softmax
+- Custom optimizer implementations
+- Full training pipeline
+- Checkpointing & decoding support
