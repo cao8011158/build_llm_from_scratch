@@ -33,7 +33,7 @@ model:
 # =========================
 training:
   # Reuse the same key name "training" so generate.py can read it
-  device: cuda
+  device: cpu
   dtype: bf16
   seed: 1337
 
