@@ -258,8 +258,8 @@ Then update `configs/decode_tinystories.yaml`:
 
 ```yaml
 tokenizer:
-  vocab_file: /path/to/vocab.json
-  merges_file: /path/to/merges.txt
+  vocab_file: /path/to/tinystories_train_v10000_vocab.json
+  merges_file: /path/to/tinystories_train_v10000_merges.json
 ```
 
 Then run:
