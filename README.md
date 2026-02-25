@@ -269,6 +269,22 @@ python -m llm_from_scratch.generate \
   --config configs/decode_tinystories.yaml
 ```
 
+##📝 Example Output
+
+```text
+=== Decoding Settings ===
+Prompt: Once upon a time
+Max new tokens: 200
+Temperature: 0.9
+Top-p: 0.95
+Device: cuda
+Dtype: torch.bfloat16
+=========================
+Once upon a time, there was a little girl named Amy. She was a very obedient girl who always listened to her mom and dad. One day, her mom said, "Amy, it's time to get ready for the trip."
+Amy went to the store and saw a big, modern toy. It was a toy car that could reverse. She asked her mom, "Can I have the toy car, please?" Her mom said, "Yes, you can have it, but be careful."
+Amy was so happy. She played with the toy car all day. She knew that even in the big, expensive toy car, it could still have lots of fun. Amy and her mom went back home, and Amy had a great time with her new toy car.
+```
+
 ---
 
 # 📚 Acknowledgements
