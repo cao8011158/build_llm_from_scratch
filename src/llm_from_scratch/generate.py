@@ -178,16 +178,22 @@ def resolve_dtype(dtype_str: str) -> torch.dtype:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate text from a trained TransformerLM checkpoint.")
-    parser.add_argument("--config", type=str, required=True, help="Path to YAML config (e.g., training_config_lr3e-3.yaml).")
+    parser.add_argument(
+        "--config",
+        type=str,
+        required=True,
+        help="Path to YAML config (e.g., configs/decode_tinystories.yaml).",
+    )
 
-    # Prompt / decoding overrides (so you can experiment without editing YAML)
-    parser.add_argument("--prompt", type=str, default="Once upon a time", help="Text prompt to condition on.")
-    parser.add_argument("--max_new_tokens", type=int, default=200, help="Maximum number of new tokens to generate.")
-    parser.add_argument("--temperature", type=float, default=0.9, help="Softmax temperature (tau).")
-    parser.add_argument("--top_p", type=float, default=0.95, help="Top-p nucleus sampling threshold.")
+    # Prompt / decoding overrides (CLI should override config; config provides defaults)
+    # IMPORTANT: default=None so we can detect whether user explicitly set it on CLI.
+    parser.add_argument("--prompt", type=str, default=None, help="Text prompt to condition on (overrides config).")
+    parser.add_argument("--max_new_tokens", type=int, default=None, help="Max new tokens (overrides config).")
+    parser.add_argument("--temperature", type=float, default=None, help="Softmax temperature (overrides config).")
+    parser.add_argument("--top_p", type=float, default=None, help="Top-p nucleus sampling threshold (overrides config).")
 
-    # Optional behaviors
-    parser.add_argument("--include_prompt", action="store_true", help="Print prompt + completion (default).")
+    # Optional behaviors (CLI overrides config too, but these are simple toggles)
+    parser.add_argument("--include_prompt", action="store_true", help="Print prompt + completion.")
     parser.add_argument("--only_completion", action="store_true", help="Print only the generated continuation.")
 
     args = parser.parse_args()
@@ -201,8 +207,30 @@ def main() -> None:
     device = str(tcfg.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
     dtype = resolve_dtype(str(tcfg.get("dtype", "float32")))
     seed = int(tcfg.get("seed", 1337))
-
     torch.manual_seed(seed)
+
+    # -----------------------------
+    # Decoding settings (config defaults + CLI overrides)
+    # -----------------------------
+    dcfg = settings.get("decoding", {})
+
+    prompt = args.prompt if args.prompt is not None else str(dcfg.get("prompt", "Once upon a time"))
+    max_new_tokens = args.max_new_tokens if args.max_new_tokens is not None else int(dcfg.get("max_new_tokens", 200))
+    temperature = args.temperature if args.temperature is not None else float(dcfg.get("temperature", 1.0))
+    top_p = args.top_p if args.top_p is not None else float(dcfg.get("top_p", 1.0))
+
+    eos_token = dcfg.get("eos_token", "<|endoftext|>")
+    include_prompt_in_output_cfg = bool(dcfg.get("include_prompt_in_output", True))
+
+    # Decide output mode:
+    # - CLI flags win
+    # - otherwise follow config include_prompt_in_output
+    if args.only_completion:
+        include_prompt_in_output = False
+    elif args.include_prompt:
+        include_prompt_in_output = True
+    else:
+        include_prompt_in_output = include_prompt_in_output_cfg
 
     # -----------------------------
     # Tokenizer
@@ -211,8 +239,6 @@ def main() -> None:
     vocab_file = tok_cfg["vocab_file"]
     merges_file = tok_cfg["merges_file"]
 
-    # Add EOS as a special token (recommended for clean stopping behavior).
-    eos_token = "<|endoftext|>"
     tok = Tokenizer.from_files(
         vocab_filepath=vocab_file,
         merges_filepath=merges_file,
@@ -228,7 +254,6 @@ def main() -> None:
     ckpt_path = resolve_checkpoint_path(settings)
     ckpt = torch.load(ckpt_path, map_location="cpu")
 
-    # Your checkpoint keys: ['model', 'optimizer', 'iteration']
     if not isinstance(ckpt, dict) or "model" not in ckpt:
         raise RuntimeError(
             f"Unexpected checkpoint format at {ckpt_path}. "
@@ -246,29 +271,43 @@ def main() -> None:
     if unexpected:
         print(f"[warn] Unexpected keys when loading state_dict (strict=False): {len(unexpected)}")
 
+    
+    # =============================
+    # Print decoding configuration
+    # =============================
+    print("=== Decoding Settings ===")
+    print(f"Prompt: {prompt}")
+    print(f"Max new tokens: {max_new_tokens}")
+    print(f"Temperature: {temperature}")
+    print(f"Top-p: {top_p}")
+    print(f"Device: {device}")
+    print(f"Dtype: {dtype}")
+    print("=========================")
+
     # -----------------------------
     # Generate
     # -----------------------------
     out_ids = generate_tokens(
         model=model,
         tok=tok,
-        prompt=args.prompt,
+        prompt=prompt,
         device=device,
         context_length=context_length,
-        max_new_tokens=int(args.max_new_tokens),
-        temperature=float(args.temperature),
-        top_p=float(args.top_p),
+        max_new_tokens=int(max_new_tokens),
+        temperature=float(temperature),
+        top_p=float(top_p),
         eos_id=eos_id,
     )
 
-    # Decide what to print
-    if args.only_completion:
-        prompt_ids = tok.encode(args.prompt)
+    # -----------------------------
+    # Print
+    # -----------------------------
+    if include_prompt_in_output:
+        print(tok.decode(out_ids.tolist()))
+    else:
+        prompt_ids = tok.encode(prompt)
         completion_ids = out_ids.tolist()[len(prompt_ids):]
         print(tok.decode(completion_ids))
-    else:
-        # default: include prompt
-        print(tok.decode(out_ids.tolist()))
 
 
 if __name__ == "__main__":
