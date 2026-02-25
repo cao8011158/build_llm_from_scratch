@@ -269,7 +269,7 @@ python -m llm_from_scratch.generate \
   --config configs/decode_tinystories.yaml
 ```
 
-##📝 Example Output
+## 📝 Example Output
 
 ```text
 === Decoding Settings ===
