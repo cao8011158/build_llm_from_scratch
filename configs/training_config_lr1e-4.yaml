@@ -1,0 +1,102 @@
+# =========================
+# Data
+# =========================
+data:
+  root: /content/drive/MyDrive/build_llm_from_scratch/data
+  datasets:
+    tinystories:
+      train_file: TinyStoriesV2-GPT4-train.txt
+      valid_file: TinyStoriesV2-GPT4-valid.txt
+    owt:
+      train_file: owt_train.txt
+      valid_file: owt_valid.txt
+  dataset_name: tinystories
+  memmap:
+    enabled: true
+    dtype: uint16
+    train_bin: /content/drive/MyDrive/build_llm_from_scratch/data/train.bin
+    valid_bin: /content/drive/MyDrive/build_llm_from_scratch/data/val.bin
+
+# =========================
+# Tokenizer
+# =========================
+tokenizer:
+  vocab_size: 10000
+  model_type: bpe
+  lowercase: false
+  save_dir: /content/drive/MyDrive/build_llm_from_scratch/tokenizer
+  vocab_file: /content/drive/MyDrive/build_llm_from_scratch/tokenizers/tinystories_train/tinystories_train_v10000_vocab.json
+  merges_file: /content/drive/MyDrive/build_llm_from_scratch/tokenizers/tinystories_train/tinystories_train_v10000_merges.json
+
+# =========================
+# Model
+# =========================
+model:
+  vocab_size: 10000
+  context_length: 256
+  num_layers: 4
+  num_heads: 16
+  d_model: 512
+  ffn_multiplier: 2.6667
+  dropout: 0.0
+  use_rope: true
+  rope_theta: 10000.0
+
+# =========================
+# Optimizer
+# =========================
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+
+# =========================
+# LR Schedule
+# =========================
+lr_schedule:
+  name: cosine_with_warmup
+  max_lr: 1.0e-4
+  min_lr: 1.0e-5
+  warmup_iters: 250
+  cosine_cycle_iters: 5000
+
+# =========================
+# Training
+# =========================
+training:
+  seed: 1337
+  device: cuda
+  dtype: bf16
+  compile: false
+
+  batch_size: 256
+  grad_accum_steps: 1
+  max_iters: 5000
+
+  grad_clip: 1.0
+  eval_interval: 100
+  eval_iters: 100
+  log_interval: 10
+  overfit_one_batch: false
+
+# =========================
+# Logging
+# =========================
+logging:
+  to_console: true
+  wandb:
+    enabled: true
+    project: build_llm_from_scratch
+    name: tinystories_lr1e-4_bs256_steps5000
+    tags: [cs336, train_loop, lr_sweep, bs256, steps5000]
+
+# =========================
+# Checkpointing
+# =========================
+checkpoint:
+  save_dir: /content/drive/MyDrive/build_llm_from_scratch/checkpoints/tinystories_lr1e-4_bs256_steps5000
+  filename_prefix: ckpt_step
+  save_interval: 500
+  write_latest: true

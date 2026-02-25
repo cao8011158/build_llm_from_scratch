@@ -1,0 +1,135 @@
+# =========================
+# Data
+# =========================
+data:
+  root: /content/drive/MyDrive/build_llm_from_scratch/data
+
+  datasets:
+    tinystories:
+      train_file: TinyStoriesV2-GPT4-train.txt
+      valid_file: TinyStoriesV2-GPT4-valid.txt
+
+    owt:
+      train_file: owt_train.txt
+      valid_file: owt_valid.txt
+
+  dataset_name: tinystories
+
+  memmap:
+    enabled: true
+    dtype: uint16
+    train_bin: /content/drive/MyDrive/build_llm_from_scratch/data/train.bin
+    valid_bin: /content/drive/MyDrive/build_llm_from_scratch/data/val.bin
+
+# =========================
+# Tokenizer
+# =========================
+tokenizer:
+  vocab_size: 10000
+  model_type: bpe
+  lowercase: false
+
+  save_dir: /content/drive/MyDrive/build_llm_from_scratch/tokenizer
+
+  vocab_file: /content/drive/MyDrive/build_llm_from_scratch/tokenizers/tinystories_train/tinystories_train_v10000_vocab.json
+  merges_file: /content/drive/MyDrive/build_llm_from_scratch/tokenizers/tinystories_train/tinystories_train_v10000_merges.json
+
+# =========================
+# Model (17M baseline — matches assignment spec)
+# =========================
+model:
+  vocab_size: 10000
+  context_length: 256
+
+  num_layers: 4
+  num_heads: 16
+  d_model: 512
+
+  ffn_multiplier: 2.6667
+  dropout: 0.0
+
+  use_rope: true
+  rope_theta: 10000.0
+
+# =========================
+# Optimizer
+# =========================
+optimizer:
+  name: adamw
+  lr: 3.0e-4
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+
+# =========================
+# LR Schedule — FIXED for 5000-step training
+# =========================
+lr_schedule:
+  name: cosine_with_warmup
+
+  max_lr: 3.0e-4
+  min_lr: 3.0e-5
+
+  # warmup ≈ 5%
+  warmup_iters: 250
+
+  # MUST equal max_iters
+  cosine_cycle_iters: 5000
+
+# =========================
+# Training — SCHEME A
+# effective batch = 64 × 4 = 256
+# total tokens = 256 × 5000 × 256 = 327,680,000
+# =========================
+training:
+  seed: 1337
+
+  device: cuda
+  dtype: bf16
+
+  compile: false
+
+  # per-step batch that fits GPU memory
+  batch_size: 256
+
+  # gradient accumulation to reach effective batch 256
+  grad_accum_steps: 1
+
+  # total optimizer updates
+  max_iters: 5000
+
+  grad_clip: 1.0
+
+  eval_interval: 100
+  eval_iters: 100
+
+  log_interval: 10
+
+  overfit_one_batch: false
+
+# =========================
+# Logging
+# =========================
+logging:
+  to_console: true
+
+  wandb:
+    enabled: true
+    project: build_llm_from_scratch
+    name: tinystories_lr3e-4_bs256_steps5000
+    tags:
+      - cs336
+      - train_loop
+      - scheme_A
+
+# =========================
+# Checkpointing
+# =========================
+checkpoint:
+  save_dir: /content/drive/MyDrive/build_llm_from_scratch/checkpoints/tinystories_lr3e-4_bs256_steps5000
+
+  filename_prefix: ckpt_step
+
+  save_interval: 500
+
+  write_latest: true

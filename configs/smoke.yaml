@@ -1,0 +1,101 @@
+# =========================
+# Data
+# =========================
+data:
+  root: /content/data
+  datasets:
+    tinystories:
+      train_file: TinyStoriesV2-GPT4-train.txt
+      valid_file: TinyStoriesV2-GPT4-valid.txt
+    owt:
+      train_file: owt_train.txt
+      valid_file: owt_valid.txt
+
+  dataset_name: tinystories
+
+  memmap:
+    enabled: true
+    dtype: uint16
+    train_bin: /content/drive/MyDrive/build_llm_from_scratch/data/train.bin
+    valid_bin: /content/drive/MyDrive/build_llm_from_scratch/data/val.bin
+# =========================
+# Tokenizer
+# =========================
+tokenizer:
+  vocab_size: 32000
+  model_type: bpe
+  lowercase: false
+  save_dir: /content/drive/MyDrive/build_llm_from_scratch/tokenizer
+  vocab_file: /content/drive/MyDrive/build_llm_from_scratch/tokenizers/tinystories_train/tinystories_train_v10000_vocab.json
+  merges_file: /content/drive/MyDrive/build_llm_from_scratch/tokenizers/tinystories_train/tinystories_train_v10000_merges.json
+
+# =========================
+# Model
+# =========================
+model:
+  vocab_size: 32000
+  context_length: 64 # 原来 1024 -> 64（smoke 用更快）
+  num_layers: 2 # 原来 12 -> 2
+  num_heads: 4 # 原来 12 -> 4（要能整除 d_model）
+  d_model: 256 # 原来 768 -> 256
+  ffn_multiplier: 2.6667
+  dropout: 0.0
+  use_rope: true
+  rope_theta: 10000.0
+
+# =========================
+# Optimizer (AdamW)
+# =========================
+optimizer:
+  name: adamw
+  lr: 3.0e-4
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+
+# =========================
+# LR Schedule (cosine + warmup)
+# =========================
+lr_schedule:
+  name: cosine_with_warmup
+  max_lr: 3.0e-4
+  min_lr: 3.0e-5
+  warmup_iters: 5 # 原来 2000 -> 5
+  cosine_cycle_iters: 50 # 跟 max_iters 对齐（smoke）
+
+# =========================
+# Training
+# =========================
+training:
+  seed: 1337
+  device: cuda # 没 GPU 就改 cpu
+  dtype: bf16 # 如果你的实现对 bf16 不稳，改 fp16 / fp32
+  compile: false
+
+  batch_size: 4 # 原来 8 -> 4
+  grad_accum_steps: 1
+  max_iters: 50 # 原来 100000 -> 50
+  grad_clip: 1.0
+
+  eval_interval: 25 # 50 steps 里 eval 2 次
+  eval_iters: 5 # 原来 100 -> 5
+  log_interval: 5 # 更快看到 it/s
+
+  overfit_one_batch: false
+
+# =========================
+# Logging
+# =========================
+logging:
+  to_console: true
+  wandb:
+    enabled: false # smoke 先关掉
+
+# ==========================
+# Checkpointing
+# ==========================
+checkpoint:
+  save_dir: /content/drive/MyDrive/build_llm_from_scratch/checkpoints_smoke
+  filename_prefix: ckpt_step
+  save_interval: 25 # 50 steps 里存 2 次
+  write_latest: true

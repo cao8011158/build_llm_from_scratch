@@ -1,0 +1,141 @@
+# =========================
+# Data
+# =========================
+data:
+  root: /content/drive/MyDrive/build_llm_from_scratch/data
+
+  datasets:
+    tinystories:
+      train_file: TinyStoriesV2-GPT4-train.txt
+      valid_file: TinyStoriesV2-GPT4-valid.txt
+    owt:
+      train_file: owt_train.txt
+      valid_file: owt_valid.txt
+
+  # Choose which dataset to train on: tinystories or owt
+  dataset_name: tinystories
+
+  # (Recommended) If you have already tokenized the text into .bin files,
+  # you can train directly using memmap
+  # For example, dtype=uint16 / int32 depending on your tokenizer vocab_size
+  memmap:
+    enabled: true
+    dtype: uint16 # Use uint16 when vocab_size <= 65535; otherwise use int32
+    train_bin: /content/drive/MyDrive/build_llm_from_scratch/data/train.bin
+    valid_bin: /content/drive/MyDrive/build_llm_from_scratch/data/val.bin
+
+# =========================
+# Tokenizer
+# =========================
+tokenizer:
+  vocab_size: 10000
+  model_type: bpe
+  lowercase: false
+
+  # Save directory
+  save_dir: /content/drive/MyDrive/build_llm_from_scratch/tokenizer
+
+  # Explicitly specify tokenizer files
+  vocab_file: /content/drive/MyDrive/build_llm_from_scratch/tokenizers/tinystories_train/tinystories_train_v10000_vocab.json
+  merges_file: /content/drive/MyDrive/build_llm_from_scratch/tokenizers/tinystories_train/tinystories_train_v10000_merges.json
+
+# =========================
+# Model
+# =========================
+model:
+  # Must match the tokenizer (usually read tokenizer.vocab_size during training)
+  vocab_size: 10000
+
+  # Context length used during training (sequence length T per sample)
+  context_length: 256
+
+  # Transformer architecture
+  num_layers: 4
+  num_heads: 16
+  d_model: 512
+
+  # FFN expansion ratio
+  ffn_multiplier: 2.6667 # 8/3
+  dropout: 0.0
+
+  use_rope: true
+  rope_theta: 10000.0 # RoPE base frequency (VERY IMPORTANT)
+
+# =========================
+# Optimizer (AdamW)
+# =========================
+optimizer:
+  name: adamw
+
+  # α (learning rate)
+  lr: 3.0e-4
+
+  # λ (weight decay)
+  weight_decay: 0.1
+
+  # (β1, β2)
+  betas: [0.9, 0.95]
+
+  # ϵ (numerical stability term)
+  eps: 1.0e-8
+
+# =========================
+# LR Schedule (cosine + warmup)
+# =========================
+lr_schedule:
+  name: cosine_with_warmup
+  max_lr: 3.0e-4
+  min_lr: 3.0e-5
+  warmup_iters: 2000
+  cosine_cycle_iters: 150000 # Usually set equal or close to max_iters
+
+# =========================
+# Training
+# =========================
+training:
+  seed: 1337
+
+  device: cuda # cpu / cuda / cuda:0
+  dtype: bf16 # fp32 / fp16 / bf16 (depends on your implementation and hardware support)
+  compile: false # Enable if you want torch.compile (not required for assignment)
+
+  batch_size: 8
+  grad_accum_steps: 1 # Increase this if you want a larger effective batch size
+  max_iters: 160000
+
+  grad_clip: 1.0
+
+  # Evaluation and logging
+  eval_interval: 1000
+  eval_iters: 100 # Number of batches to average during each evaluation
+  log_interval: 50
+
+# =========================
+# Logging
+# =========================
+logging:
+  to_console: true
+
+  # Optional: Weights & Biases
+  wandb:
+    enabled: true
+    project: build_llm_from_scratch
+    name: tinystories_run
+    tags: ["cs336", "train_loop"]
+
+# ==========================
+# Checkpointing
+# ==========================
+checkpoint:
+  # Checkpoint directory (recommended to store in Drive)
+  save_dir: /content/drive/MyDrive/build_llm_from_scratch/checkpoints
+
+  # (Optional) Naming template: default saves as ckpt_step00000010.pt, etc.
+  filename_prefix: ckpt_step
+
+  # Save frequency (in steps)
+  save_interval: 2000
+
+  # (Optional) Whether to also save an additional latest.pt copy
+  # (More stable than symlinks in Drive)
+  write_latest: true
